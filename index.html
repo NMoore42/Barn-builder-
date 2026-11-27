@@ -372,7 +372,7 @@ function commit(){save();redraw();}
 function fitOp(w,o){o.w=Math.min(o.w,w.L-1); o.u=clamp(o.u,o.w/2+.25,w.L-o.w/2-.25);
   const room=Math.min(hAt(w,o.u-o.w/2),hAt(w,o.u+o.w/2))-.4-o.k; o.eh=Math.max(.5,Math.min(o.h,Math.floor(room*2+1e-6)/2));}
 function overlaps(w,o){return w.ops.some(p=>p!==o&&Math.abs(p.u-o.u)<(p.w+o.w)/2+.25);}
-function postsAt(w){const n=Math.max(1,Math.round(w.L/8)),a=[];for(let i=0;i<=n;i++)a.push(i*w.L/n);return a;}
+function postsAt(w){const n=w.L<=16?1:Math.round(w.L/8),a=[];for(let i=0;i<=n;i++)a.push(i*w.L/n);return a;}
 function buildWall(w){const g=w.group; emptyGroup(g);
   const L=w.L, top=topFor(w);
   if(w.state==='none'){box(g,L,.05,.9,L/2,.02,0,w.m.none);return;}
