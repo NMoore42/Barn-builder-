@@ -960,6 +960,19 @@ const B32='abcdefghijklmnopqrstuvwxyz234567';
 function b32enc(t){const by=unescape(encodeURIComponent(t));let out='',bits=0,val=0;for(let i=0;i<by.length;i++){val=(val<<8)|by.charCodeAt(i);bits+=8;while(bits>=5){out+=B32[(val>>>(bits-5))&31];bits-=5;}val&=(1<<bits)-1;}if(bits)out+=B32[(val<<(5-bits))&31];return out;}
 function b32dec(s){let bits=0,val=0,out='';for(const ch of s.toLowerCase()){const v=B32.indexOf(ch);if(v<0)throw new Error('char');val=(val<<5)|v;bits+=5;if(bits>=8){out+=String.fromCharCode((val>>>(bits-8))&255);bits-=8;val&=(1<<bits)-1;}}return decodeURIComponent(escape(out));}
 const encodeLink=st=>'barn4'+b32enc(JSON.stringify(compactState(st,true)));
+/* barn5 squeezes the barn with deflate first, so links stay short enough for Messages to keep them whole */
+const canSqueeze=typeof CompressionStream==='function'&&typeof DecompressionStream==='function';
+function b32encBytes(u8){let out='',bits=0,val=0;for(const x of u8){val=(val<<8)|x;bits+=8;while(bits>=5){out+=B32[(val>>>(bits-5))&31];bits-=5;}val&=(1<<bits)-1;}if(bits)out+=B32[(val<<(5-bits))&31];return out;}
+function b32decBytes(s){const out=[];let bits=0,val=0;for(const ch of s.toLowerCase()){const v=B32.indexOf(ch);if(v<0)throw new Error('char');val=(val<<5)|v;bits+=5;if(bits>=8){out.push((val>>>(bits-8))&255);bits-=8;val&=(1<<bits)-1;}}return new Uint8Array(out);}
+async function squeeze(text,dir){const cs=dir?new CompressionStream('deflate-raw'):new DecompressionStream('deflate-raw');
+  const input=dir?new TextEncoder().encode(text):text;const out=new Response(new Blob([input]).stream().pipeThrough(cs));
+  return dir?new Uint8Array(await out.arrayBuffer()):await out.text();}
+async function encodeLinkAsync(st){if(!canSqueeze)return encodeLink(st);try{return 'barn5'+b32encBytes(await squeeze(JSON.stringify(compactState(st,true)),true));}catch(e){return encodeLink(st);}}
+async function decodeAsync(txt){const m=String(txt).replace(/\s+/g,'').match(/barn5([a-z2-7]+)/i);
+  if(!m)return decode(txt);
+  if(!canSqueeze)throw new Error('old browser');
+  const c=m[1];for(let n=0;n<=Math.min(8,c.length-8);n++){try{let o=JSON.parse(await squeeze(b32decBytes(c.slice(0,c.length-n)),false));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}
+  throw new Error('shape');}
 const barnPrint=st=>JSON.stringify(compactState(st,false));
 /* finds a layout inside whatever was pasted: a bare code, a link, or either one wrapped in other words or broken across lines */
 function decode(txt){const raw=String(txt),first=raw.trim();
@@ -987,6 +1000,7 @@ const canLink=!window.claude&&/^https?:$/.test(location.protocol);
 /* the barn goes in ?b= rather than after #: Messages on iPhone dropped or cut the # part of earlier links */
 const linkFor=st=>location.origin+location.pathname+'?'+encodeLink(st);
 function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encodeLink(st);return canLink?linkFor(st):code;}
+async function shareTextAsync(st){if(!st){st=getState();st.name=(curProject()||{}).name||'';}const code=await encodeLinkAsync(st);return canLink?location.origin+location.pathname+'?'+code:code;}
 function copyText(text,ta,note){const fail=()=>{ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='It could not be copied for you. The text below is selected: tap it and choose Copy.';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>{note.textContent='Copied. Paste it into a message, an email or Notes.';},fail);else fail();}
 function barnFile(){const st=getState();st.name=(curProject()||{}).name||'Barn';st.app="Tom's Barn Builder";
@@ -1003,7 +1017,7 @@ $('mCopy').onclick=()=>{closeMenu();const name=(curProject()||{}).name||'Barn',n
   dialog('Save “'+name+'” to a file',h('p',null,'Keeps a copy you can open later with Open a barn, or move to another device.'),
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>saveBarnFile(note)},'Save to a file'),h('button',{onclick:closeDialog},'Close')),note);};
 $('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placeholder:'Or paste a link or text here'}),err=h('p',{class:'warn',role:'status'},'');
-  const open=text=>{let o;try{o=decode(text);}catch(e){err.textContent='That is not a barn. Choose a file saved from this app, or paste the whole link or text.';return;}
+  const open=async text=>{let o;try{o=await decodeAsync(text);}catch(e){err.textContent='That is not a barn. Choose a file saved from this app, or paste the whole link or text.';return;}
     const key=sharedKey(o),same=key&&sameProject(key);if(same){closeDialog();sameDialog(o,same);return;}
     const m=loadShared(o);if(!m){err.textContent='That barn could not be opened.';return;}closeDialog();toast(m);};
   const pick=h('input',{type:'file',id:'barnFileIn','aria-label':'Choose a barn file'});
@@ -1029,7 +1043,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=45, VERSION_DATE='Nov 27';
+const VERSION=46, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1201,12 +1215,12 @@ function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:
   finally{roof.visible=keep.roof;labelsG.visible=keep.tags;topView=keep.top;slice.on=keep.slice;applySlice();measureG.visible=keep.meas;if(selBox)selBox.visible=keep.box;
     renderer.setPixelRatio(keep.pr);cam.position.copy(keep.pos);applyTheme();resize();controls.update();updateFade();redraw();}
   return out;}
-function viewsDoc(){const doc=pdfDoc(),views=captureViews(),name=(curProject()||{}).name||'Barn',today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
+function viewsDoc(lnk){const doc=pdfDoc(),views=captureViews(),name=(curProject()||{}).name||'Barn',today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
   views.forEach(([title,img],i)=>{if(i)doc.addPage('letter','landscape');
     doc.setTextColor(23,52,110);doc.setFont('helvetica','bold');doc.setFontSize(20);doc.text(title,.5,.7);
     doc.setFont('helvetica','normal');doc.setFontSize(11);doc.text(name+" - Tom's Barn Builder, software by Nick Moore - "+today,.5,.98);doc.text('Picture '+(i+1)+' of '+views.length,10.5,.7,{align:'right'});
     doc.addImage(img,'JPEG',.5,1.15,10,6.25);
-    if(!i&&canLink){doc.setTextColor(31,79,209);doc.setFontSize(13);doc.textWithLink('Tap here to open this barn in 3D and look around it yourself',.5,7.85,{url:shareText()});}
+    if(!i&&canLink){doc.setTextColor(31,79,209);doc.setFontSize(13);doc.textWithLink('Tap here to open this barn in 3D and look around it yourself',.5,7.85,{url:lnk||shareText()});}
     else{doc.setFontSize(10);doc.text('Planning pictures. Check all measurements before building.',.5,7.85);}});
   return doc;}
 async function savePdfFiles(files,note){
@@ -1223,14 +1237,14 @@ function shareDialog(){closeMenu();
   const opt=(title,desc,fn)=>h('button',{class:'shareopt',onclick:fn},h('b',null,title),h('span',null,desc));
   const pdf=async kind=>{if(!window.jspdf||!window.jspdf.jsPDF){note.textContent='The PDF tool did not load. Check the internet connection and try again.';return;}
     body.textContent='';note.textContent='Getting it ready. This takes a few seconds.';
-    try{const views=kind==='views',blob=views?viewsDoc().output('blob'):(await blueprintDoc()).output('blob'),fname=fileBase()+(views?'-3D-pictures.pdf':'-blueprint.pdf'),files=[[fname,blob]];
+    try{const views=kind==='views',lnk=views&&canLink?await shareTextAsync():null,blob=views?viewsDoc(lnk).output('blob'):(await blueprintDoc()).output('blob'),fname=fileBase()+(views?'-3D-pictures.pdf':'-blueprint.pdf'),files=[[fname,blob]];
       let list=null;try{list=[new File([blob],fname,{type:'application/pdf'})];}catch(e){}
       const can=!dlPromise&&!!list&&!!navigator.share&&!!navigator.canShare&&navigator.canShare({files:list});
       note.textContent='Ready: '+fname+'.'+(can?' Tap Share it.':'');
       body.append(h('div',{class:'row'},can?h('button',{class:'primary',onclick:()=>{navigator.share({files:list}).then(()=>{note.textContent='Shared.';},e=>{if(!e||e.name!=='AbortError')note.textContent='Sharing did not work here. Use Save it instead.';});}},'Share it'):null,
         h('button',{class:can?'':'primary',onclick:()=>savePdfFiles(files,note)},'Save it'),h('button',{onclick:menu},'Back')));
     }catch(e){note.textContent='That could not be made on this device.';body.append(h('div',{class:'row'},h('button',{onclick:menu},'Back')));}};
-  const link=()=>{const text=shareText();body.textContent='';
+  const link=async()=>{body.textContent='';note.textContent='Making the link.';const text=await shareTextAsync();note.textContent='';
     const ta=h('textarea',{id:'codeOut','aria-label':'Link to share',readonly:true},text);
     body.append(h('p',{class:'dims'},'This is the link that will be sent. It is '+text.length+' characters long and should end with the same letters on the other phone.'),ta,
       h('div',{class:'row'},(canLink&&navigator.share)?h('button',{class:'primary',onclick:()=>{navigator.share({url:text}).then(()=>{note.textContent='Sent.';},e=>{if(e&&e.name!=='AbortError')note.textContent='Sending did not work here. Use Copy the link instead.';});}},'Send it'):null,
@@ -1294,17 +1308,17 @@ function maybeInstallBar(){if(!canInstall()||!touchDevice||$('installBar'))retur
   const bar=h('div',{class:'installbar',id:'installBar',role:'region','aria-label':'Add to Home Screen'},h('span',null,'Use Barn Builder like an app on this '+(isIOS&&/iPad|Macintosh/.test(navigator.userAgent)?'iPad':'phone')+'.'),
     h('button',{class:'primary',onclick:()=>{hide();installApp();}},'Add it'),h('button',{class:'x','aria-label':'No thanks',onclick:hide},'\u00D7'));
   bar.style.top=(document.querySelector('.bar').offsetHeight+6)+'px';app.append(bar);}
-function toHomeApp(o){const text=linkFor(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
+function toHomeApp(o,pre){const text=pre||linkFor(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
   const steps=h('ol',{class:'steps'},h('li',null,'Go to your Home Screen and open Barn Builder.'),h('li',null,'Tap Menu, then Open a barn.'),h('li',null,'Tap Paste and open.'));
   dialog('Open it in your Home Screen app',h('p',null,'Links always open here in the browser, so the barn needs to be pasted into the app.'),note,steps,ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK'),canInstall()?h('button',{onclick:installApp},'I don’t have the app yet'):null));
   ta.hidden=true;
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
 let linkInfo=null;
-function readIncoming(){let o=null;const raw=location.search+location.hash;
-  if(!/BARN[1-4]/i.test(raw)){if(/^[?#](b\b|b=|barn)/i.test(raw)){linkInfo={len:raw.length,kind:'cut-off',why:'the barn part of the link was missing'};try{history.replaceState(null,'',location.pathname);}catch(e){}return {bad:true};}return null;}
-  linkInfo={len:raw.length,kind:(raw.match(/BARN[1-4]/i)||['?'])[0].toUpperCase(),why:'could not be decoded'};
-  try{o=decode(raw);}catch(e){try{o=decode(decodeURIComponent(raw));}catch(e2){}}
+async function readIncoming(){let o=null;const raw=location.search+location.hash;
+  if(!/BARN[1-5]/i.test(raw)){if(/^[?#](b\b|b=|barn)/i.test(raw)){linkInfo={len:raw.length,kind:'cut-off',why:'the barn part of the link was missing'};try{history.replaceState(null,'',location.pathname);}catch(e){}return {bad:true};}return null;}
+  linkInfo={len:raw.length,kind:(raw.match(/BARN[1-5]/i)||['?'])[0].toUpperCase(),why:'could not be decoded'};
+  try{o=await decodeAsync(raw);}catch(e){if(String(e&&e.message)==='old browser')linkInfo.why='this browser is too old to read it';try{o=await decodeAsync(decodeURIComponent(raw));}catch(e2){}}
   try{history.replaceState(null,'',location.pathname);}catch(e){}if(o)linkInfo.why='';return o||{bad:true};}
 /* the layout matches a barn already here; the sender may have named it differently */
 function sameDialog(o,same){const nm=cleanName(o.name),open=same.id===curId,renamed=!!nm&&nm!==same.name;
@@ -1323,12 +1337,12 @@ function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
   if(same){sameDialog(o,same);return;}
   dialog('Open the shared barn?',h('p',null,'This link has a barn layout'+(nm?' called “'+nm+'”':'')+'. It opens as a new project, and your own projects stay as they are.'),
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{const m=loadShared(o);if(m){closeDialog();toast(m);}else toast('That layout could not be opened.');}},'Open it here'),
-      (!inHomeApp&&touchDevice)?h('button',{onclick:()=>toHomeApp(o)},'Open it in my Home Screen app'):null,h('button',{onclick:closeDialog},'No thanks')));}
-window.addEventListener('hashchange',()=>{const o=readIncoming();if(o)offerIncoming(o);});
-incoming=readIncoming();
-if(incoming)offerIncoming(incoming);
+      (!inHomeApp&&touchDevice)?h('button',{onclick:()=>toHomeApp(o,o.__link)},'Open it in my Home Screen app'):null,h('button',{onclick:closeDialog},'No thanks')));
+  if(!inHomeApp&&touchDevice)shareTextAsync(o).then(l=>{o.__link=l;}).catch(()=>{});}
+window.addEventListener('hashchange',async()=>{const o=await readIncoming();if(o)offerIncoming(o);});
+if(/BARN[1-5]/i.test(location.search+location.hash)||/^[?#](b\b|b=|barn)/i.test(location.search+location.hash))readIncoming().then(o=>{if(o)offerIncoming(o);});
 else if(!saved&&!seenHelp)help();
 updateInstall(); maybeInstallBar();
-window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews,encodeLink,decode,compactState};
+window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews,encodeLink,encodeLinkAsync,decode,decodeAsync,compactState};
 })();
 </script>
