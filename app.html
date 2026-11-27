@@ -390,11 +390,11 @@ function updateFade(){for(const id in walls){const w=walls[id],d=w.def,mx=(d.a[0
 function vehicle(d,col,cab,r){const g=new THREE.Group(),cl=r*.8,bh=(d.H-cl)*.52;
   box(g,d.L,bh,d.W,0,cl,0,col); if(cab)box(g,(cab[1]-cab[0])*d.L,d.H-cl-bh,d.W*.9,((cab[0]+cab[1])/2-.5)*d.L,cl+bh,0,0x2c3642);
   wheels(g,r,.7,[d.L*.31,-d.L*.31],d.W);return g;}
-function tractor(d,col,loader){const g=new THREE.Group(),bl=loader?d.L*.72:d.L,x0=-(d.L-bl)/2,rr=d.H*.3,fr=d.H*.17;
-  box(g,bl*.55,d.H*.26,d.W*.42,x0+bl*.18,d.H*.3,0,col); box(g,bl*.35,d.H*.2,d.W*.5,x0-bl*.25,d.H*.25,0,col);
-  box(g,bl*.3,d.H*.5,d.W*.55,x0-bl*.24,d.H*.5,0,mat(0x2c3642,{transparent:true,opacity:.75}));
-  wheels(g,rr,d.W*.24,[x0-bl*.24],d.W); wheels(g,fr,d.W*.16,[x0+bl*.32],d.W*.9);
-  if(loader){box(g,d.L*.3,.3,.3,d.L*.25,d.H*.3,d.W*.3,0x33373d);box(g,d.L*.3,.3,.3,d.L*.25,d.H*.3,-d.W*.3,0x33373d);box(g,1.6,1.6,d.W,d.L/2-.8,.3,0,0x33373d);}
+function tractor(d,col,loader,bodyW){const g=new THREE.Group(),bw=bodyW||d.W,bl=loader?d.L*.72:d.L,x0=-(d.L-bl)/2,rr=d.H*.3,fr=d.H*.17;
+  box(g,bl*.55,d.H*.26,bw*.42,x0+bl*.18,d.H*.3,0,col); box(g,bl*.35,d.H*.2,bw*.5,x0-bl*.25,d.H*.25,0,col);
+  box(g,bl*.3,d.H*.5,bw*.55,x0-bl*.24,d.H*.5,0,mat(0x2c3642,{transparent:true,opacity:.75}));
+  wheels(g,rr,bw*.24,[x0-bl*.24],bw); wheels(g,fr,bw*.16,[x0+bl*.32],bw*.9);
+  if(loader){box(g,d.L*.3,.3,.3,d.L*.25,d.H*.3,bw*.3,0x33373d);box(g,d.L*.3,.3,.3,d.L*.25,d.H*.3,-bw*.3,0x33373d);box(g,1.6,1.6,d.W,d.L/2-.8,.3,0,0x33373d);}
   return g;}
 function trailerBase(g,d,deckY,r){box(g,d.L*.16,.25,.35,d.L*.42,deckY-.3,0,0x555b63);wheels(g,r,.6,[-d.L*.15],d.W);}
 function boat(d){const g=new THREE.Group();trailerBase(g,d,1.5,1.1);box(g,d.L*.8,.25,d.W*.45,-d.L*.06,1.1,0,0x555b63);
@@ -413,7 +413,7 @@ const CAT={
   car:{n:'Chevy Equinox',g:'Vehicles',L:15.25,W:6.05,H:5.45,b:d=>vehicle(d,0x39618c,[.1,.74],1.15)},
   suv:{n:'SUV',g:'Vehicles',L:16.5,W:6.5,H:5.9,b:d=>vehicle(d,0x54606b,[.1,.72],1.2)},
   pickup:{n:'Ford F-250 crew cab',g:'Vehicles',L:20.83,W:6.67,H:6.75,b:d=>vehicle(d,0x8a2f26,[.33,.74],1.4)},
-  tractor:{n:'Tractor with loader',g:'Vehicles',L:14,W:5.5,H:7.8,b:d=>tractor(d,0x2f7a3a,true)},
+  tractor:{n:'Kubota B7500 with loader',g:'Vehicles',L:12.5,W:6,H:7.25,b:d=>tractor(d,0xe8601c,true,3.9)},
   bigtractor:{n:'Farm tractor',g:'Vehicles',L:15,W:7.5,H:9.5,b:d=>tractor(d,0xb8321f,false)},
   mower:{n:'Zero-turn mower',g:'Vehicles',L:6.5,W:5,H:4.5,b:d=>{const g=new THREE.Group();box(g,d.L*.5,.6,d.W,d.L*.2,.3,0,0xd9a514);box(g,d.L*.5,1.6,d.W*.6,-d.L*.2,.9,0,0x33373d);box(g,1.6,1.8,1.8,-d.L*.1,2.5,0,0x23262b);wheels(g,.9,.7,[-d.L*.25],d.W);return g;}},
   utv:{n:'Yamaha Viking, 6 seat',g:'Vehicles',L:12.8,W:5.15,H:6.4,b:d=>{const g=vehicle(d,0x1f4e9a,null,1.1);box(g,d.L*.6,d.H*.4,d.W*.9,-d.L*.04,d.H*.5,0,mat(0x2c3642,{transparent:true,opacity:.55}));box(g,d.L*.62,.15,d.W*.92,-d.L*.04,d.H-.15,0,0x23262b);return g;}},
