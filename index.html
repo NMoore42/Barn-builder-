@@ -370,7 +370,7 @@ function commit(){save();redraw();}
 
 /* ================= walls ================= */
 function fitOp(w,o){o.w=Math.min(o.w,w.L-1); o.u=clamp(o.u,o.w/2+.25,w.L-o.w/2-.25);
-  const room=Math.min(hAt(w,o.u-o.w/2),hAt(w,o.u+o.w/2))-.4-o.k; o.eh=Math.max(.5,Math.min(o.h,room));}
+  const room=Math.min(hAt(w,o.u-o.w/2),hAt(w,o.u+o.w/2))-.4-o.k; o.eh=Math.max(.5,Math.min(o.h,Math.floor(room*2+1e-6)/2));}
 function overlaps(w,o){return w.ops.some(p=>p!==o&&Math.abs(p.u-o.u)<(p.w+o.w)/2+.25);}
 function postsAt(w){const n=Math.max(1,Math.round(w.L/8)),a=[];for(let i=0;i<=n;i++)a.push(i*w.L/n);return a;}
 function buildWall(w){const g=w.group; emptyGroup(g);
@@ -464,7 +464,11 @@ function buildItem(it){removeItemMesh(it);const g=CAT[it.t].b(dims(it));g.userDa
   const tx=textTexture([CAT[it.t].n],'#ffffff','rgba(28,42,58,.82)'),sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx.t,depthWrite:false}));
   sp.scale.set(1.5*tx.asp,1.5,1);it.lab=sp;labelsG.add(sp);placeItem(it);}
 function placeItem(it){it.g.position.set(it.x,0,it.z);it.g.rotation.y=-it.r*Math.PI/180;it.lab.position.set(it.x,elev(it.t)+dims(it).H+1.6,it.z);}
-function headroomNote(it){const c=CAT[it.t]; if(c.hang)return null; const r=roofAt(it.x,it.z); return r!=null&&dims(it).H>r?'Too tall for this spot. The roof here is '+ft(r)+' high.':null;}
+function overheadDoors(){const a=[];for(const id in walls){const w=walls[id];if(w.state==='solid')w.ops.forEach(o=>{if(o.t==='ohd')a.push({w,o});});}return a;}
+function headroomNote(it){const c=CAT[it.t]; if(c.hang)return null; const r=roofAt(it.x,it.z),H=dims(it).H; if(r==null)return null;
+  if(H>r)return 'Too tall for this spot. The roof here is '+ft(r)+' high.';
+  if(c.g==='Vehicles'||c.g==='Trailers & boats'){const d=overheadDoors(); if(d.length){const top=Math.max(...d.map(x=>x.o.eh)); if(H>top)return 'Too tall for the overhead doors. The tallest door is '+ft(top)+'.';}}
+  return null;}
 
 /* ================= selection, picking, dragging ================= */
 let mode='arrange', tab='things', view='inside', tagsOn=true, sel=null, selBox=null, palTab='Vehicles', tapU=null;
@@ -560,6 +564,11 @@ function setWallState(s){const w=walls[sel.wallId];if(w.state===s)return;pushUnd
 function setParam(k,by,lo,hi){const cur=k==='lean'?leanLo():k==='leanIn'?leanHi():P[k],v=clamp(cur+by,lo,hi);if(v===cur)return;pushUndo();P[k]=v;
   for(const id in walls){const w=walls[id];w.ops.forEach(o=>fitOp(w,o));buildWall(w);}
   buildRoof();items.forEach(it=>{if(CAT[it.t].dyn)buildItem(it);});renderDock();commit();}
+function setDoorHeight(by){const d=overheadDoors();if(!d.length)return;const cur=Math.max(...d.map(x=>x.o.eh)),v=clamp(Math.round(cur)+by,7,16),was=d.map(x=>[x.o.h,x.o.eh]);
+  d.forEach(x=>{x.o.h=v;fitOp(x.w,x.o);});
+  if(d.every((x,i)=>x.o.eh===was[i][1])){d.forEach((x,i)=>{x.o.h=was[i][0];fitOp(x.w,x.o);});if(by>0)toast('The doors are as tall as the walls allow. Raise the wall height first.');return;}
+  const now=d.map(x=>x.o.h);d.forEach((x,i)=>{x.o.h=was[i][0];});pushUndo();d.forEach((x,i)=>{x.o.h=now[i];fitOp(x.w,x.o);});
+  new Set(d.map(x=>x.w)).forEach(buildWall);renderDock();commit();}
 function setColor(k,v){if(P[k]===v)return;pushUndo();P[k]=v;applyColors();renderDock();commit();}
 
 /* ================= dock (bottom panel) ================= */
@@ -578,6 +587,8 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
   if(tab==='size'){dock.append(
       field('Wall height','Floor to the top of the main barn walls',bigstep(ft(P.wall),()=>setParam('wall',-1,8,20),()=>setParam('wall',1,8,20))),
       field('Roof pitch','How steep the main roof is. The peak is '+ft(ridge())+' high.',bigstep(P.pitch+' in 12',()=>setParam('pitch',-1,1,12),()=>setParam('pitch',1,1,12))),
+      (()=>{const d=overheadDoors();return field('Overhead door height',d.length?'How tall the big doors are, for getting vehicles in. Sets all '+d.length+' at once.':'There are no overhead doors yet. Add one in Doors & walls.',
+        d.length?bigstep(ft(Math.max(...d.map(x=>x.o.eh))),()=>setDoorHeight(-1),()=>setDoorHeight(1)):h('span',null,''));})(),
       field('Lean-to inside height','Where the lean-to roof meets the barn wall',bigstep(ft(leanHi()),()=>setParam('leanIn',-.5,6,P.wall),()=>setParam('leanIn',.5,6,P.wall))),
       field('Lean-to outside height','Height at the low outer edge. The lean-to roof slopes '+(Math.round((leanHi()-leanLo())/14*120)/10)+' in 12.',bigstep(ft(leanLo()),()=>setParam('lean',-.5,5,leanHi()-.5),()=>setParam('lean',.5,5,leanHi()-.5))),
       h('p',{class:'hint'},'The floor plan is from the sketch: 60 ft wide and 48 ft deep. Doors shrink to fit if a wall gets shorter.'));return;}
