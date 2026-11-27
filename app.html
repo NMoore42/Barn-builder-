@@ -127,7 +127,51 @@ button:disabled{opacity:.45;cursor:default}
 .bpbody svg{width:100%;max-width:1100px;height:auto;background:#ffffff;border:1px solid var(--line);flex:0 0 auto}
 
 @media (max-width:1280px){ .brand{display:none} }
-@media (max-width:640px){ .brand{display:none} button{padding:8px 10px} .maintabs{flex-wrap:wrap} .maintabs button{flex:1 1 40%;font-size:16px;min-height:48px} }
+.palette{display:flex;flex-direction:column;gap:10px}
+@media (min-width:641px){ .phone-only{display:none!important} }
+@media (max-width:640px){
+  .wide-only,.brand,.spacer{display:none!important}
+  body{font-size:15px}
+  button{min-height:44px;padding:6px 12px}
+  .bar{gap:6px;padding-block:8px}
+  .bar .projbtn{flex:1 1 0;min-width:0;max-width:none;text-align:left}
+  .bar .group{flex:0 0 auto;flex-wrap:nowrap}
+  .bar .seg{order:3;flex:1 1 100%}
+  .bar .seg button{flex:1 1 0;min-height:40px;padding:4px 6px}
+  .menu{width:min(260px,calc(100% - 32px))}
+  .toast{top:112px}
+  .dock{gap:8px;padding-block:8px;max-height:46%}
+  .maintabs{gap:4px}
+  .maintabs button{font-size:15px;min-height:44px;padding:6px 2px}
+  .maintabs button.collapse{flex:0 0 44px;font-size:16px}
+  .dock .hint{font-size:14px}
+  .name{font-size:18px}
+  .dims{font-size:14px}
+  .sel{gap:6px}
+  .sel .what{flex:1 1 100%}
+  .sel .row{width:100%;gap:6px}
+  .sel .row > button{flex:1 1 auto;padding:6px 10px}
+  .palette.has-sel{display:none}
+  .palette{gap:8px}
+  .tabs button{min-height:38px;font-size:14px;padding:4px 10px}
+  .chip{min-width:104px;padding:6px 10px}
+  .chip small{font-size:12px}
+  .stepper{font-size:14px;padding-left:8px}
+  .stepper span{min-width:0}
+  .stepper button{min-width:42px}
+  .field{gap:4px 8px}
+  .field .lab{flex:1 1 110px}
+  .field .lab b{font-size:16px}
+  .field .lab span{display:none}
+  .bigstep{gap:4px}
+  .bigstep output{font-size:18px;min-width:5.5ch}
+  .bigstep button{min-width:48px;min-height:44px;font-size:22px}
+  .swatches{flex-wrap:nowrap;overflow-x:auto;width:100%;padding:6px 6px 8px}
+  .swatch{width:40px;height:40px;min-height:40px;flex:0 0 auto}
+  .dockmin .name{font-size:16px}
+  .sheet{padding:14px;gap:10px}
+  .bphead button{flex:1 1 auto}
+}
 @media print{
   html,body,.app{height:auto;overflow:visible}
   .app > *:not(.bp){display:none!important}
@@ -148,18 +192,21 @@ button:disabled{opacity:.45;cursor:default}
     <div class="seg" role="group" aria-label="How to look at it">
       <button id="v-inside" aria-pressed="true">Inside</button>
       <button id="v-outside" aria-pressed="false">Outside</button>
-      <button id="v-above" aria-pressed="false">From above</button>
+      <button id="v-above" aria-pressed="false"><span class="wide-only">From above</span><span class="phone-only">Above</span></button>
     </div>
     <div class="group">
       <button id="btnUndo" disabled>Undo</button>
-      <button id="btnSlice" aria-pressed="false">Slice</button>
-      <button id="btnMeasure" aria-pressed="false">Measure</button>
-      <button id="btnBlueprint">Blueprint</button>
-      <button id="btnMore" aria-expanded="false">Settings</button>
+      <button id="btnSlice" class="wide-only" aria-pressed="false">Slice</button>
+      <button id="btnMeasure" class="wide-only" aria-pressed="false">Measure</button>
+      <button id="btnBlueprint" class="wide-only">Blueprint</button>
+      <button id="btnMore" aria-expanded="false"><span class="wide-only">Settings</span><span class="phone-only">Menu</span></button>
     </div>
   </header>
 
   <div class="menu" id="menu" hidden>
+    <button id="mBlueprint" class="phone-only">Blueprint</button>
+    <button id="mSlice" class="phone-only">Slice</button>
+    <button id="mMeasure" class="phone-only">Measure</button>
     <button id="mHelp">Help</button>
     <button id="mLabels" aria-pressed="true">Name tags</button>
     <button id="mCopy">Save or share</button>
@@ -719,7 +766,7 @@ function setDoorHeight(by){const d=overheadDoors();if(!d.length)return;const cur
 function setColor(k,v){if(P[k]===v)return;pushUndo();P[k]=v;applyColors();renderDock();commit();}
 
 /* ================= dock (bottom panel) ================= */
-const TABS=[['things','Vehicles & equipment'],['doors','Doors & walls'],['size','Height & roof'],['colors','Colors']];
+const TABS=[['things','Vehicles & equipment','Items'],['doors','Doors & walls','Doors'],['size','Height & roof','Size'],['colors','Colors','Colors']];
 function endsText(w,o){const alongX=Math.abs(w.dx)>.5,a=alongX?'left':'back',b=alongX?'right':'front';
   return ft(o.w)+' wide × '+ft(o.eh)+' tall · '+ft(o.u-o.w/2)+' from the '+a+' corner, '+ft(w.L-o.u-o.w/2)+' from the '+b+' corner';}
 function itemText(it){const d=dims(it),c=CAT[it.t];if(it.t==='loft'){const r=roofAt(it.x,it.z);return ft(d.L)+' long × '+ft(d.W)+' wide · floor '+ft(d.H)+' up · '+ft(d.H-JOIST)+' clear underneath'+(r!=null&&r>d.H?' · '+ft(r-d.H)+' headroom on top':'')+(it.g?' · railing on '+it.g.userData.railSides+(it.g.userData.railSides===1?' side':' sides'):'');}
@@ -735,9 +782,9 @@ function setDock(open){dockOpen=open;renderDock();resize();}
 function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scroll.scrollLeft:0; dock.textContent='';
   if(!dockOpen){const it=sel&&sel.kind==='item'&&findItem(sel.id),o=sel&&sel.kind==='op'&&findOp(sel.wallId,sel.opId);
     dock.append(h('div',{class:'dockmin'},h('div',{class:'name'},it?CAT[it.t].n:o?OPS[o.t].n:sel&&sel.kind==='wall'?walls[sel.wallId].def.n:(TABS.find(t=>t[0]===tab)||['',''])[1]),
-      h('button',{class:'primary','aria-expanded':'false',onclick:()=>setDock(true)},'Show the menu \u25B4')));return;}
-  dock.append(h('div',{class:'maintabs',role:'group','aria-label':'What to work on'},TABS.map(([k,l])=>h('button',{'aria-pressed':String(k===tab),onclick:()=>setTab(k)},l)),
-    h('button',{class:'collapse','aria-label':'Hide the menu','aria-expanded':'true',onclick:()=>setDock(false)},'Hide \u25BE')));
+      h('button',{class:'primary','aria-expanded':'false','aria-label':'Show the menu',onclick:()=>setDock(true)},h('span',{class:'wide-only'},'Show the menu '),h('span',{class:'phone-only'},'Show '),'\u25B4')));return;}
+  dock.append(h('div',{class:'maintabs',role:'group','aria-label':'What to work on'},TABS.map(([k,l,sh])=>h('button',{'aria-pressed':String(k===tab),'aria-label':l,onclick:()=>setTab(k)},h('span',{class:'wide-only'},l),h('span',{class:'phone-only'},sh))),
+    h('button',{class:'collapse','aria-label':'Hide the menu','aria-expanded':'true',onclick:()=>setDock(false)},h('span',{class:'wide-only'},'Hide '),'\u25BE')));
   if(tab==='size'){dock.append(
       field('Wall height','Floor to the top of the main barn walls',bigstep(ft(P.wall),()=>setParam('wall',-1,8,20),()=>setParam('wall',1,8,20))),
       field('Roof pitch','How steep the main roof is. The peak is '+ft(ridge())+' high.',bigstep(P.pitch+' in 12',()=>setParam('pitch',-1,1,12),()=>setParam('pitch',1,1,12))),
@@ -745,7 +792,7 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
         d.length?bigstep(ft(Math.max(...d.map(x=>x.o.eh))),()=>setDoorHeight(-1),()=>setDoorHeight(1)):h('span',null,''));})(),
       field('Lean-to inside height','Where the lean-to roof meets the barn wall',bigstep(ft(leanHi()),()=>setParam('leanIn',-.5,6,P.wall),()=>setParam('leanIn',.5,6,P.wall))),
       field('Lean-to outside height','Height at the low outer edge. The lean-to roof slopes '+(Math.round((leanHi()-leanLo())/14*120)/10)+' in 12.',bigstep(ft(leanLo()),()=>setParam('lean',-.5,5,leanHi()-.5),()=>setParam('lean',.5,5,leanHi()-.5))),
-      h('p',{class:'hint'},'The floor plan is from the sketch: 60 ft wide and 48 ft deep. Doors shrink to fit if a wall gets shorter.'));return;}
+      h('p',{class:'hint wide-only'},'The floor plan is from the sketch: 60 ft wide and 48 ft deep. Doors shrink to fit if a wall gets shorter.'));return;}
   if(tab==='colors'){[['siding','Siding'],['roof','Roof'],['door','Doors and trim']].forEach(([k,l])=>dock.append(field(l,colorName(k),
       h('div',{class:'swatches'},COLORS[k].map(c=>h('button',{class:'swatch',style:'background:'+c[1],'aria-label':l+' '+c[0],title:c[0],'aria-pressed':String(c[1]===P[k]),onclick:()=>setColor(k,c[1])}))))));return;}
   if(tab==='things'){
@@ -755,15 +802,15 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
         h('div',{class:'what'},h('div',{class:'name'},c.n),h('div',{class:'dims',id:'selDims'},itemText(it)),h('div',{class:'warn',id:'selWarn',hidden:!note},note||'')),
         h('div',{class:'row'},h('button',{onclick:()=>rotateSel(-15)},'Turn left'),h('button',{onclick:()=>rotateSel(15)},'Turn right'),h('button',{onclick:()=>rotateSel(90)},'Quarter turn'),
           (canSit(it)&&loftAt(it))?h('button',{class:it.up?'':'primary',onclick:toggleUp},it.up?'Put on the floor':'Put on the loft'):null,
-          h('button',{onclick:dupSel},'Copy'),h('button',{class:'danger',onclick:removeSel},'Remove'))));
-      if(it.t==='stairs')dock.append(h('p',{class:'hint'},'Drag the stairs close to a loft and they clip on, turn to face it and match its height.'));
-      if(it.t==='loft')dock.append(h('p',{class:'hint'},'To put something on the loft, add it while the loft is selected. Or drag an item over the loft and tap Put on the loft.'));
+          h('button',{onclick:dupSel},'Copy'),h('button',{class:'danger',onclick:removeSel},'Remove'),h('button',{class:'phone-only primary',onclick:()=>select(null)},'Done'))));
+      if(it.t==='stairs')dock.append(h('p',{class:'hint wide-only'},'Drag the stairs close to a loft and they clip on, turn to face it and match its height.'));
+      if(it.t==='loft')dock.append(h('p',{class:'hint wide-only'},'To put something on the loft, add it while the loft is selected. Or drag an item over the loft and tap Put on the loft.'));
       if(c.resize){const lab=Object.assign({L:'Long',W:'Wide',H:'Tall'},c.labels||{}),stp=k=>(k==='H'&&c.stepH)||c.step||.5;
         dock.append(h('div',{class:'row'},(c.keys||['L','W','H']).map(k=>stepper(lab[k],ft(d[k]),()=>resizeItem(k,-stp(k)),()=>resizeItem(k,stp(k))))));}
-    } else dock.append(h('p',{class:'hint'},'Tap something below to add it, then drag it into place. Tap an item to turn or remove it. Floor squares are 2 ft.'));
-    dock.append(h('div',{class:'tabs'},GROUPS.map(gn=>h('button',{'aria-pressed':String(gn===palTab),onclick:()=>{palTab=gn;renderDock();}},gn))));
+    } else dock.append(h('p',{class:'hint wide-only'},'Tap something below to add it, then drag it into place. Tap an item to turn or remove it. Floor squares are 2 ft.'));
+    const groupTabs=h('div',{class:'tabs'},GROUPS.map(gn=>h('button',{'aria-pressed':String(gn===palTab),onclick:()=>{palTab=gn;renderDock();}},gn)));
     const chips=h('div',{class:'chips'},Object.keys(CAT).filter(k=>CAT[k].g===palTab).map(k=>h('button',{class:'chip',onclick:()=>addItem(k)},h('span',null,'+ '+CAT[k].n),h('small',null,sh(CAT[k].L)+' × '+sh(CAT[k].W)+', '+sh(CAT[k].H)+' tall'))));
-    dock.append(chips); chips.scrollLeft=keep; return;}
+    dock.append(h('div',{class:'palette'+(it?' has-sel':'')},groupTabs,chips)); chips.scrollLeft=keep; return;}
   if(sel&&sel.kind==='wall'){const w=walls[sel.wallId];
     dock.append(h('div',{class:'sel'},h('div',{class:'what'},h('div',{class:'name'},w.def.n),h('div',{class:'dims'},ft(w.L)+' long. Pick something below to put it where you tapped.')),
       h('div',{class:'seg',role:'group','aria-label':'Wall type'},WALL_STATES.map(([s,l])=>h('button',{'aria-pressed':String(w.state===s),onclick:()=>setWallState(s)},l)))));
@@ -776,7 +823,7 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
     if(o.t==='slider'){const ax=Math.abs(w.dx)>.5;
       dock.append(h('div',{class:'row'},h('div',{class:'seg',role:'group','aria-label':'How it opens'},[[0,'Splits both ways'],[-1,ax?'Slides left':'Slides toward the back'],[1,ax?'Slides right':'Slides toward the front']]
         .map(([v,l])=>h('button',{'aria-pressed':String((o.d||0)===v),onclick:()=>setSlide(v)},l)))));}
-    dock.append(h('p',{class:'hint'},'Drag it to move it along the wall.'));
+    dock.append(h('p',{class:'hint wide-only'},'Drag it to move it along the wall.'));
   } else dock.append(h('p',{class:'hint'},'Tap a wall to add a door or window there, or to open the wall up. Tap a door to change its size, drag it to slide it. A blue strip on the floor marks a wall that has been taken out; tap it to put the wall back.'));
 }
 
@@ -845,7 +892,7 @@ $('measureClear').onclick=()=>{measure.a=measure.b=null;drawMeasure();};
 /* ================= menu, dialogs ================= */
 $('btnUndo').onclick=()=>{const s=undo.pop();if(!s)return;$('btnUndo').disabled=!undo.length;applyState(JSON.parse(s));save();};
 function closeMenu(){$('menu').hidden=true;$('btnMore').setAttribute('aria-expanded','false');}
-$('btnMore').onclick=()=>{const m=$('menu');m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
+$('btnMore').onclick=()=>{const m=$('menu');m.style.top=(document.querySelector('.bar').offsetHeight+2)+'px';m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
 $('mLabels').onclick=()=>{tagsOn=!tagsOn;labelsG.visible=tagsOn&&view!=='outside';$('mLabels').setAttribute('aria-pressed',String(tagsOn));try{localStorage.setItem(KEY+'.tags',tagsOn?'1':'0');}catch(e){}redraw();};
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true;},3200);}
 function dialog(title,...body){const s=$('sheet');s.textContent='';s.append(h('h2',null,title),...body);$('modal').hidden=false;}
@@ -911,7 +958,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=29, VERSION_DATE='Nov 27';
+const VERSION=30, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -924,7 +971,7 @@ $('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.
 let projEdit=null, projDel=null;
 const cleanName=v=>String(v||'').replace(/\s+/g,' ').trim().slice(0,40);
 function uniqueName(base){let n=base,i=2;while(projects.some(p=>p.name===n))n=base+' '+(i++);return n;}
-function updateProjectButton(){const p=curProject();$('btnProject').textContent='Project: '+(p?p.name:'');}
+function updateProjectButton(){const p=curProject(),b=$('btnProject');b.textContent='';b.append(h('span',{class:'wide-only'},'Project: '),p?p.name:'');b.setAttribute('aria-label','Project: '+(p?p.name:''));}
 function openProject(id){curId=id;saveProjects();undo.length=0;$('btnUndo').disabled=true;const st=readProject(id);
   try{applyState(st&&st.walls?st:defaultState());}catch(e){applyState(defaultState());} updateProjectButton();}
 function newProject(name,state){const id='p'+nid();projects.push({id,name,t:Date.now()});writeProject(id,state);openProject(id);}
@@ -1117,6 +1164,7 @@ async function savePdf(){const btn=$('bpSave');
     }else{const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);bpStatus('Saved. Open barn-blueprint.pdf and print it from there.');}
   }catch(e){bpStatus('The PDF could not be made on this device. You can take a screenshot of each sheet and print the pictures.');}
   finally{btn.disabled=false;}}
+$('mBlueprint').onclick=openBlueprint; $('mSlice').onclick=openSlice; $('mMeasure').onclick=()=>{closeMenu();setMeasure(!measure.on);};
 $('mPdf').onclick=sharePdfs; $('bpShare').onclick=sharePdfs;
 $('btnBlueprint').onclick=openBlueprint; $('bpClose').onclick=closeBlueprint; $('bpSave').onclick=savePdf;
 if(!window.claude){$('bpPrint').hidden=false;$('bpPrint').onclick=()=>window.print();}
