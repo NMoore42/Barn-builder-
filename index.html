@@ -951,29 +951,47 @@ function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTim
 function dialog(title,...body){const s=$('sheet');s.textContent='';s.append(h('h2',null,title),...body);$('modal').hidden=false;}
 function closeDialog(){$('modal').hidden=true;}
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeDialog();});
-const encode=o=>'BARN1:'+btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const b64u=t=>btoa(unescape(encodeURIComponent(t))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const encode=o=>'BARN1:'+b64u(JSON.stringify(o));
+/* short form for links: only what differs from the sketch, no internal ids, lists instead of named fields */
+const num2=v=>Math.round(v*100)/100;
+function compactState(st,withName){const c={v:2},b={},w={};const sb=st.b||{};
+  for(const k in DEF_P)if(sb[k]!=null&&sb[k]!==DEF_P[k])b[k]=sb[k];if(Object.keys(b).length)c.b=b;
+  const opRow=o=>{const r=[o.t,num2(o.u),num2(o.w),num2(o.h)];if(o.d)r.push(o.d);return r;};
+  WALL_DEFS.forEach(d=>{const ws=(st.walls||{})[d.id];if(!ws)return;const rows=(ws.o||[]).map(opRow),def=d.o.map(opRow);
+    if(ws.s===d.s&&JSON.stringify(rows)===JSON.stringify(def))return;w[d.id]=[ws.s].concat(rows);});
+  if(Object.keys(w).length)c.w=w;
+  c.i=(st.items||[]).map(it=>{const r=[it.t,num2(it.x),num2(it.z),num2(it.r||0)],x={};['L','W','H'].forEach(k=>{if(it[k]!=null)x[k]=num2(it[k]);});if(it.up)x.up=1;if(Object.keys(x).length)r.push(x);return r;});
+  if(withName&&st.name)c.n=st.name;return c;}
+function expandState(c){const st={v:1,b:Object.assign({},DEF_P,c.b||{}),walls:{},items:[]},cw=c.w||{};
+  WALL_DEFS.forEach(d=>{const r=Array.isArray(cw[d.id])?cw[d.id]:null;
+    st.walls[d.id]=r?{s:r[0],o:r.slice(1).filter(Array.isArray).map(([t,u,w,hh,dd])=>({t,u,w,h:hh,k:(OPS[t]||{}).k||0,d:dd||0}))}:{s:d.s,o:d.o.map(o=>Object.assign({},o))};});
+  st.items=(Array.isArray(c.i)?c.i:[]).filter(Array.isArray).map(([t,x,z,r,ex])=>Object.assign({t,x,z,r},ex&&typeof ex==='object'?ex:{}));
+  if(c.n)st.name=c.n;return st;}
+const encodeLink=st=>'BARN2:'+b64u(JSON.stringify(compactState(st,true)));
+const barnPrint=st=>JSON.stringify(compactState(st,false));
 /* finds a layout inside whatever was pasted: a bare code, a link, or either one wrapped in other words or broken across lines */
 function decode(txt){const raw=String(txt),first=raw.trim();
   if(first[0]==='{'){try{const o=JSON.parse(first);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}
-  const re=/BARN1(?::|%3A)([A-Za-z0-9+\/=_-]+)/i,cands=[];
+  const re=/BARN[12](?::|%3A)([A-Za-z0-9+\/=_-]+)/i,cands=[];
   const one=b=>{b=b.replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');while(b.length%4)b+='=';
-    const o=JSON.parse(decodeURIComponent(escape(atob(b))));if(!o||typeof o!=='object'||!o.walls)throw new Error('shape');return o;};
+    let o=JSON.parse(decodeURIComponent(escape(atob(b))));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(!o||typeof o!=='object'||!o.walls)throw new Error('shape');return o;};
   let m=raw.match(re);if(m)cands.push(m[1]); m=raw.replace(/\s+/g,'').match(re);if(m)cands.push(m[1]);
   if(!cands.length)throw new Error('none');
   for(const c of cands)for(let n=0;n<=Math.min(400,c.length-8);n++){try{return one(c.slice(0,c.length-n));}catch(e){}}
   throw new Error('shape');}
 /* a shared barn always arrives as its own project; returns the message to show, or null if it could not be read */
 /* the barn a shared layout would become, as saved text, or null when it cannot be read */
-function sharedKey(o){const before=JSON.stringify(getState());let key=null;try{applyState(o);key=JSON.stringify(getState());}catch(e){}applyState(JSON.parse(before));return key;}
-function sameProject(key){const now=JSON.stringify(getState());return projects.find(q=>q.id===curId?now===key:JSON.stringify(readProject(q.id))===key);}
+function sharedKey(o){const before=JSON.stringify(getState());let key=null;try{applyState(o);key=barnPrint(getState());}catch(e){}applyState(JSON.parse(before));return key;}
+function sameProject(key){const now=barnPrint(getState());return projects.find(q=>{if(q.id===curId)return now===key;const st=readProject(q.id);return !!st&&barnPrint(st)===key;});}
 function loadShared(o,copy){const before=JSON.stringify(getState());try{applyState(o);}catch(e){applyState(JSON.parse(before));return null;}
-  const good=getState(),key=JSON.stringify(good);applyState(JSON.parse(before));
+  const good=getState(),key=barnPrint(good);applyState(JSON.parse(before));
   const same=!copy&&sameProject(key);
   if(same){if(same.id!==curId)openProject(same.id);return 'You already have this barn. Showing “'+same.name+'”.';}
   const want=cleanName(o.name)||'Shared barn',name=uniqueName(projects.some(q=>q.name===want)?want+' (shared)':want);
   newProject(name,good);return 'Opened “'+name+'”. Your own barns are under the Project button.';}
 const canLink=!window.claude&&/^https?:$/.test(location.protocol);
-function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encode(st);return canLink?location.origin+location.pathname+'#'+code:code;}
+function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encodeLink(st);return canLink?location.origin+location.pathname+'#'+code:code;}
 function copyText(text,ta,note){const fail=()=>{ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='It could not be copied for you. The text below is selected: tap it and choose Copy.';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>{note.textContent='Copied. Paste it into a message, an email or Notes.';},fail);else fail();}
 function barnFile(){const st=getState();st.name=(curProject()||{}).name||'Barn';st.app="Tom's Barn Builder";
@@ -1015,7 +1033,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=36, VERSION_DATE='Nov 27';
+const VERSION=37, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1280,13 +1298,13 @@ function maybeInstallBar(){if(!canInstall()||!touchDevice||$('installBar'))retur
   const bar=h('div',{class:'installbar',id:'installBar',role:'region','aria-label':'Add to Home Screen'},h('span',null,'Use Barn Builder like an app on this '+(isIOS&&/iPad|Macintosh/.test(navigator.userAgent)?'iPad':'phone')+'.'),
     h('button',{class:'primary',onclick:()=>{hide();installApp();}},'Add it'),h('button',{class:'x','aria-label':'No thanks',onclick:hide},'\u00D7'));
   bar.style.top=(document.querySelector('.bar').offsetHeight+6)+'px';app.append(bar);}
-function toHomeApp(o){const text=location.origin+location.pathname+'#'+encode(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
+function toHomeApp(o){const text=location.origin+location.pathname+'#'+encodeLink(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
   const steps=h('ol',{class:'steps'},h('li',null,'Go to your Home Screen and open Barn Builder.'),h('li',null,'Tap Menu, then Open a barn.'),h('li',null,'Tap Paste and open.'));
   dialog('Open it in your Home Screen app',h('p',null,'Links always open here in the browser, so the barn needs to be pasted into the app.'),note,steps,ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK'),canInstall()?h('button',{onclick:installApp},'I don’t have the app yet'):null));
   ta.hidden=true;
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
-function readIncoming(){let o=null;if(!/BARN1/i.test(location.hash))return null;
+function readIncoming(){let o=null;if(!/BARN[12]/i.test(location.hash))return null;
   try{o=decode(location.hash);}catch(e){try{o=decode(decodeURIComponent(location.hash));}catch(e2){}}
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}return o||{bad:true};}
 function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
