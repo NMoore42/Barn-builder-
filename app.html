@@ -976,6 +976,8 @@ async function decodeAsync(txt){const m=String(txt).replace(/\s+/g,'').match(/ba
 const barnPrint=st=>JSON.stringify(compactState(st,false));
 /* finds a layout inside whatever was pasted: a bare code, a link, or either one wrapped in other words or broken across lines */
 function decode(txt){const raw=String(txt),first=raw.trim();
+  const pg=raw.match(/<script[^>]*id="barn-data"[^>]*>([\s\S]*?)<\/script>/i);
+  if(pg){const o=JSON.parse(pg[1]);if(o&&typeof o==='object'&&o.walls)return o;throw new Error('shape');}
   if(first[0]==='{'){try{const o=JSON.parse(first);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}
   const m4=raw.match(/barn4([a-z2-7]+)/i);
   if(m4){const c=m4[1];for(let n=0;n<=Math.min(8,c.length-8);n++){try{let o=JSON.parse(b32dec(c.slice(0,c.length-n)));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}throw new Error('shape');}
@@ -1043,7 +1045,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=46, VERSION_DATE='Nov 27';
+const VERSION=47, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1201,6 +1203,26 @@ const pdfDoc=()=>new window.jspdf.jsPDF({orientation:'landscape',unit:'in',forma
 async function blueprintDoc(){const doc=pdfDoc(),sheets=blueprintSheets();
   for(let i=0;i<sheets.length;i++){const img=await svgToPng(sheets[i],2200,1700);if(i)doc.addPage('letter','landscape');doc.addImage(img,'JPEG',0,0,11,8.5);}return doc;}
 /* pictures of the 3D barn from fixed angles, taken without disturbing what is on screen */
+/* a single web page file: pictures of the barn plus a button that opens it in the app; works in the Messages preview without the app */
+function shrinkJpeg(url,w){return new Promise(res=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=w;c.height=Math.round(img.height*w/img.width);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.82));};img.onerror=()=>res(url);img.src=url;});}
+async function barnPageFile(){const st=getState(),name=(curProject()||{}).name||'Barn';st.name=name;
+  const link=canLink?await shareTextAsync(st):null,views=captureViews(),pics=[];
+  for(const i of [0,2])if(views[i])pics.push([views[i][0],await shrinkJpeg(views[i][1],1100)]);
+  const e=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const facts=[['Size','60 ft × 48 ft'],['Wall height',ft(eave())],['Roof pitch',P.pitch+' in 12'],['Siding',colorName('siding')],['Roof',colorName('roof')],['Vehicles and equipment',String(items.length)]];
+  const html='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+e(name)+" - Tom's Barn Builder</title>"+
+    '<style>body{margin:0;font:17px/1.45 -apple-system,Helvetica,Arial,sans-serif;background:#f3f5f1;color:#1c2a3a}main{max-width:720px;margin:0 auto;padding:20px 16px 40px}'+
+    'h1{font-size:28px;margin:0 0 2px}.by{color:#5d6570;font-size:14px;margin:0 0 18px}.go{display:block;text-align:center;background:#1f4fd1;color:#fff;text-decoration:none;font-weight:600;font-size:20px;padding:16px;border-radius:12px;margin:0 0 8px}'+
+    '.note{color:#5d6570;font-size:14px;margin:0 0 20px}figure{margin:0 0 16px}img{width:100%;border-radius:10px;display:block}figcaption{font-size:14px;color:#5d6570;margin-top:4px}'+
+    'table{width:100%;border-collapse:collapse;font-size:16px;margin-top:8px}td{padding:7px 0;border-bottom:1px solid #cdd5d1}td+td{text-align:right;font-weight:600}</style></head><body><main>'+
+    '<h1>'+e(name)+'</h1><p class="by">'+"Tom's Barn Builder · software by Nick Moore"+'</p>'+
+    (link?'<a class="go" href="'+e(link)+'">Open this barn in 3D</a><p class="note">Opens in the browser, where you can turn the barn around, look inside and keep your own copy. You do not need the app.</p>':'')+
+    pics.map(([t,u])=>'<figure><img alt="'+e(t)+'" src="'+u+'"><figcaption>'+e(t)+'</figcaption></figure>').join('')+
+    '<table>'+facts.map(([a,b])=>'<tr><td>'+e(a)+'</td><td>'+e(b)+'</td></tr>').join('')+'</table>'+
+    '<p class="note" style="margin-top:20px">To add this barn to Barn Builder another way: in the app, tap Menu, then Open a barn, and choose this file.</p>'+
+    '<script type="application/json" id="barn-data">'+JSON.stringify(st).replace(/</g,'\\u003c')+'<\/script></main></body></html>';
+  return {name:fileBase()+'.html',html};}
 function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:roof.visible,tags:labelsG.visible,top:topView,pr:renderer.getPixelRatio(),slice:slice.on,meas:measureG.visible,box:selBox?selBox.visible:false};
   renderer.setPixelRatio(1);renderer.setSize(W,H,false);cam.clearViewOffset();cam.aspect=W/H;cam.updateProjectionMatrix();
   renderer.setClearColor(new THREE.Color('#e7ece8'));groundMat.color.set('#dbe2d9');
@@ -1249,7 +1271,15 @@ function shareDialog(){closeMenu();
     body.append(h('p',{class:'dims'},'This is the link that will be sent. It is '+text.length+' characters long and should end with the same letters on the other phone.'),ta,
       h('div',{class:'row'},(canLink&&navigator.share)?h('button',{class:'primary',onclick:()=>{navigator.share({url:text}).then(()=>{note.textContent='Sent.';},e=>{if(e&&e.name!=='AbortError')note.textContent='Sending did not work here. Use Copy the link instead.';});}},'Send it'):null,
         h('button',{class:(canLink&&navigator.share)?'':'primary',onclick:()=>copyText(text,ta,note)},canLink?'Copy the link':'Copy the text'),h('button',{onclick:menu},'Back')));};
+  const page=async()=>{body.textContent='';note.textContent='Making the barn page. This takes a few seconds.';
+    try{const f=await barnPageFile(),blob=new Blob([f.html],{type:'text/html'});let list=null;try{list=[new File([blob],f.name,{type:'text/html'})];}catch(e){}
+      const can=!dlPromise&&!!list&&!!navigator.share&&!!navigator.canShare&&navigator.canShare({files:list});
+      note.textContent='Ready: '+f.name+'.'+(can?' Tap Send it and choose Messages.':'');
+      body.append(h('div',{class:'row'},can?h('button',{class:'primary',onclick:()=>{navigator.share({files:list}).then(()=>{note.textContent='Sent.';},e=>{if(!e||e.name!=='AbortError')note.textContent='Sending did not work here. Use Save it instead.';});}},'Send it'):null,
+        h('button',{class:can?'':'primary',onclick:()=>savePdfFiles([[f.name,blob]],note)},'Save it'),h('button',{onclick:menu},'Back')));
+    }catch(e){note.textContent='The barn page could not be made on this device.';body.append(h('div',{class:'row'},h('button',{onclick:menu},'Back')));}};
   const menu=()=>{body.textContent='';note.textContent='';body.append(
+    opt('Barn page','One file they tap to see the barn and open it in 3D. Best for texting.',page),
     opt('3D pictures','A PDF with five pictures of the barn, inside and out',()=>pdf('views')),
     opt('Blueprint','A PDF of the four blueprint sheets with measurements',()=>pdf('plans')),
     opt(canLink?'Link':'Text','Opens the barn on their phone so they can turn it around and look inside',link));};
@@ -1343,6 +1373,6 @@ window.addEventListener('hashchange',async()=>{const o=await readIncoming();if(o
 if(/BARN[1-5]/i.test(location.search+location.hash)||/^[?#](b\b|b=|barn)/i.test(location.search+location.hash))readIncoming().then(o=>{if(o)offerIncoming(o);});
 else if(!saved&&!seenHelp)help();
 updateInstall(); maybeInstallBar();
-window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews,encodeLink,encodeLinkAsync,decode,decodeAsync,compactState};
+window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews,barnPageFile,encodeLink,encodeLinkAsync,decode,decodeAsync,compactState};
 })();
 </script>
