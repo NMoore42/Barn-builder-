@@ -59,6 +59,9 @@ button:disabled{opacity:.45;cursor:default}
 .maintabs{display:flex;gap:6px}
 .maintabs button{flex:1 1 0;white-space:nowrap;font-weight:600;font-size:18px;min-height:52px}
 .maintabs button[aria-pressed="true"]{background:var(--marker);color:var(--marker-ink);border-color:var(--marker)}
+.maintabs button.collapse{flex:0 0 auto;font-weight:500;font-size:16px}
+.dockmin{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dockmin .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hint{margin:0;color:var(--pencil);font-size:16px;line-height:1.35}
 .sel{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
 .sel .what{min-width:0;flex:1 1 220px}
@@ -717,8 +720,14 @@ function updateSelText(){const el=$('selDims');if(!el||!sel)return;
 function stepper(label,val,minus,plus){return h('div',{class:'stepper'},h('span',null,label+' '+val),h('button',{'aria-label':label+' smaller',onclick:minus},'−'),h('button',{'aria-label':label+' bigger',onclick:plus},'+'));}
 function bigstep(text,minus,plus){return h('div',{class:'bigstep'},h('button',{'aria-label':'Less',onclick:minus},'−'),h('output',null,text),h('button',{'aria-label':'More',onclick:plus},'+'));}
 function field(title,note,control){return h('div',{class:'field'},h('div',{class:'lab'},h('b',null,title),h('span',null,note)),control);}
+let dockOpen=true;
+function setDock(open){dockOpen=open;renderDock();resize();}
 function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scroll.scrollLeft:0; dock.textContent='';
-  dock.append(h('div',{class:'maintabs',role:'group','aria-label':'What to work on'},TABS.map(([k,l])=>h('button',{'aria-pressed':String(k===tab),onclick:()=>setTab(k)},l))));
+  if(!dockOpen){const it=sel&&sel.kind==='item'&&findItem(sel.id),o=sel&&sel.kind==='op'&&findOp(sel.wallId,sel.opId);
+    dock.append(h('div',{class:'dockmin'},h('div',{class:'name'},it?CAT[it.t].n:o?OPS[o.t].n:sel&&sel.kind==='wall'?walls[sel.wallId].def.n:(TABS.find(t=>t[0]===tab)||['',''])[1]),
+      h('button',{class:'primary','aria-expanded':'false',onclick:()=>setDock(true)},'Show the menu \u25B4')));return;}
+  dock.append(h('div',{class:'maintabs',role:'group','aria-label':'What to work on'},TABS.map(([k,l])=>h('button',{'aria-pressed':String(k===tab),onclick:()=>setTab(k)},l)),
+    h('button',{class:'collapse','aria-label':'Hide the menu','aria-expanded':'true',onclick:()=>setDock(false)},'Hide \u25BE')));
   if(tab==='size'){dock.append(
       field('Wall height','Floor to the top of the main barn walls',bigstep(ft(P.wall),()=>setParam('wall',-1,8,20),()=>setParam('wall',1,8,20))),
       field('Roof pitch','How steep the main roof is. The peak is '+ft(ridge())+' high.',bigstep(P.pitch+' in 12',()=>setParam('pitch',-1,1,12),()=>setParam('pitch',1,1,12))),
@@ -887,11 +896,12 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
   h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print. Share as PDFs sends pictures of the barn in 3D along with the blueprint.'),
+  h('p',null,h('b',null,'Hide: '),'the Hide button at the end of the bottom row tucks the menu away so you can see more of the barn. Show the menu brings it back.'),
   h('p',null,h('b',null,'Settings: '),'has this help, name tags, saving a barn to a file or opening one, and Refresh, which loads the newest version of the app without touching your projects.'),
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=26, VERSION_DATE='November 27';
+const VERSION=27, VERSION_DATE='November 27';
 $('mVersion').append(h('div',null,h('b',null,"Tommy's Barn Builder"),', version '+VERSION+' ('+VERSION_DATE+')'),h('div',null,'Software by Nick Moore'),
   h('div',null,'Price: free, plus one cold beer per version. Tommy, your tab stands at '+VERSION+' beers.'),h('div',null,'Refreshing keeps your projects.'));
 $('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.');const go=()=>location.reload();
