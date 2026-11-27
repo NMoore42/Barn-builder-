@@ -955,16 +955,22 @@ const b64u=t=>btoa(unescape(encodeURIComponent(t))).replace(/\+/g,'-').replace(/
 const encode=o=>'BARN1:'+b64u(JSON.stringify(o));
 /* short form for links: only what differs from the sketch, no internal ids, lists instead of named fields */
 const num2=v=>Math.round(v*100)/100;
+/* short links leave out anything equal to this frozen starting design; it must never change, or old links would open differently */
+const LINK2_BASE=Object.freeze({b:{wall:10,pitch:4,lean:7,leanIn:9.5,siding:'#a8322a',roof:'#b4b9bd',door:'#f4f3ee'},
+  w:{'n-main':['solid',['entry',3,3,6.67]],'s-main':['solid',['ohd',8.5,12,8],['ohd',23.5,12,8]],'shop-div':['solid',['slider',11,10,8]],'w-main':['solid',['entry',21,3,6.67]],
+     'e-main':['solid'],'mid':['none'],'shop-n':['solid'],'shop-w':['solid'],'shop-s':['solid'],'lw-w':['open'],'lw-s':['open'],'le-n':['open'],'le-e':['open'],'le-s':['open']}});
 function compactState(st,withName){const c={v:2},b={},w={};const sb=st.b||{};
-  for(const k in DEF_P)if(sb[k]!=null&&sb[k]!==DEF_P[k])b[k]=sb[k];if(Object.keys(b).length)c.b=b;
+  for(const k in sb)if(sb[k]!=null&&sb[k]!==LINK2_BASE.b[k])b[k]=sb[k];if(Object.keys(b).length)c.b=b;
   const opRow=o=>{const r=[o.t,num2(o.u),num2(o.w),num2(o.h)];if(o.d)r.push(o.d);return r;};
-  WALL_DEFS.forEach(d=>{const ws=(st.walls||{})[d.id];if(!ws)return;const rows=(ws.o||[]).map(opRow),def=d.o.map(opRow);
-    if(ws.s===d.s&&JSON.stringify(rows)===JSON.stringify(def))return;w[d.id]=[ws.s].concat(rows);});
+  WALL_DEFS.forEach(d=>{const ws=(st.walls||{})[d.id];if(!ws)return;const row=[ws.s].concat((ws.o||[]).map(opRow));
+    if(JSON.stringify(row)===JSON.stringify(LINK2_BASE.w[d.id]))return;w[d.id]=row;});
   if(Object.keys(w).length)c.w=w;
-  c.i=(st.items||[]).map(it=>{const r=[it.t,num2(it.x),num2(it.z),num2(it.r||0)],x={};['L','W','H'].forEach(k=>{if(it[k]!=null)x[k]=num2(it[k]);});if(it.up)x.up=1;if(Object.keys(x).length)r.push(x);return r;});
+  c.i=(st.items||[]).map(it=>{const r=[it.t,num2(it.x),num2(it.z),num2(it.r||0)],x={};
+    for(const k in it){if(['i','t','x','z','r','g','lab'].includes(k)||it[k]==null)continue;x[k]=typeof it[k]==='number'?num2(it[k]):it[k];}
+    if(Object.keys(x).length)r.push(x);return r;});
   if(withName&&st.name)c.n=st.name;return c;}
-function expandState(c){const st={v:1,b:Object.assign({},DEF_P,c.b||{}),walls:{},items:[]},cw=c.w||{};
-  WALL_DEFS.forEach(d=>{const r=Array.isArray(cw[d.id])?cw[d.id]:null;
+function expandState(c){const st={v:1,b:Object.assign({},LINK2_BASE.b,c.b||{}),walls:{},items:[]},cw=c.w||{};
+  WALL_DEFS.forEach(d=>{const r=Array.isArray(cw[d.id])?cw[d.id]:(LINK2_BASE.w[d.id]||null);
     st.walls[d.id]=r?{s:r[0],o:r.slice(1).filter(Array.isArray).map(([t,u,w,hh,dd])=>({t,u,w,h:hh,k:(OPS[t]||{}).k||0,d:dd||0}))}:{s:d.s,o:d.o.map(o=>Object.assign({},o))};});
   st.items=(Array.isArray(c.i)?c.i:[]).filter(Array.isArray).map(([t,x,z,r,ex])=>Object.assign({t,x,z,r},ex&&typeof ex==='object'?ex:{}));
   if(c.n)st.name=c.n;return st;}
@@ -1033,7 +1039,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=37, VERSION_DATE='Nov 27';
+const VERSION=38, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1323,7 +1329,7 @@ incoming=readIncoming();
 if(incoming)offerIncoming(incoming);
 else if(!saved&&!seenHelp)help();
 updateInstall(); maybeInstallBar();
-window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews};
+window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews,encodeLink,decode,compactState};
 })();
 </script>
 </body>

@@ -1,0 +1,21 @@
+// Sends barns through a short link and compares every saved field on arrival (internal ids ignored).
+const {chromium}=require('playwright');const path=require('path');const L=process.env.LIBS||path.join(__dirname,'libs');
+(async()=>{const b=await chromium.launch({args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
+const p=await b.newPage({viewport:{width:1180,height:820}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
+for(const [re,f] of [[/three\.min\.js/,'three.min.js'],[/OrbitControls\.js/,'OrbitControls.js'],[/jspdf\.umd\.min\.js/,'jspdf.umd.min.js']])await p.route(re,r=>r.fulfill({path:path.join(L,f),contentType:'text/javascript'}));
+await p.goto('file://'+path.join(__dirname,'..','index.html'));await p.waitForTimeout(1500);
+const out=await p.evaluate(()=>{const B=window.__barn,strip=st=>JSON.stringify(st,(k,v)=>k==='i'?undefined:v);
+  const base=B.getState(),results=[];
+  const trial=(name,mut)=>{const s=JSON.parse(JSON.stringify(base));mut(s);B.applyState(s);const want=B.getState();
+    const link=B.encodeLink(Object.assign({},want,{name:'x'}));B.applyState(base);B.applyState(B.decode('https://h/#'+link));const got=B.getState();
+    results.push([name,strip(got)===strip(want),link.length]);};
+  trial('starting barn',s=>{});
+  trial('everything changed',s=>{s.b={wall:14,pitch:6,lean:6.5,leanIn:12,siding:'#5f7890',roof:'#474c52',door:'#5f4331'};
+    s.walls['s-main'].o=[{t:'ohd',u:9,w:14,h:10,k:0}];s.walls['shop-div'].o[0].d=-1;s.walls['n-main'].s='open';s.walls['mid'].s='solid';s.walls['mid'].o=[{t:'double',u:16,w:6,h:6.67,k:0}];s.walls['le-e'].s='none';
+    s.items=[{t:'loft',x:30,z:6.5,r:0,L:20,W:12,H:9},{t:'stairs',x:30,z:18.5,r:270,H:9},{t:'fridge',x:30,z:6.5,r:0,up:true},{t:'custom',x:44.5,z:44,r:33.33,L:7.5,W:3,H:2},{t:'boat',x:53,z:34,r:90}];});
+  trial('all walls removed, no items',s=>{for(const k in s.walls){s.walls[k].s='none';s.walls[k].o=[];}s.items=[];});
+  trial('only default doors moved',s=>{s.walls['s-main'].o[0].u=7.5;});
+  trial('40 items',s=>{s.items=[];for(let i=0;i<40;i++)s.items.push({t:['car','pickup','utv','filecab','shelving'][i%5],x:2+(i%10)*5,z:2+Math.floor(i/10)*10,r:(i*15)%360});});
+  return results;});
+for(const [n,ok,len] of out)console.log((ok?'MATCH   ':'DIFFERS ')+n.padEnd(30)+' link '+len+' chars');
+console.log('errors',errs);await b.close();})();
