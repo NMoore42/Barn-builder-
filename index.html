@@ -354,7 +354,7 @@ function applyState(s){
     const o={i:freshId(it.i),t:it.t,x:clamp(num(it.x,30),-30,90),z:clamp(num(it.z,24),-30,90),r:((num(it.r,0)%360)+360)%360};
     if(CAT[it.t].resize)['L','W','H'].forEach(k=>{if(it[k]!=null)o[k]=clamp(num(it[k],CAT[it.t][k]),.5,60);});
     items.push(o); buildItem(o);});
-  sel=null; updateFade(); refreshSel(); renderDock(); redraw();}
+  refreshLofts(); sel=null; updateFade(); refreshSel(); renderDock(); redraw();}
 /* projects: each is one saved version of the barn, kept in this browser */
 const PKEY=KEY+'.projects'; let projects=[], curId=null;
 const curProject=()=>projects.find(p=>p.id===curId);
@@ -462,14 +462,11 @@ const CAT={
   stove:{n:'Wood stove',g:'Heat',L:2.5,W:2.2,H:3,dyn:true,b:d=>{const g=new THREE.Group();box(g,d.L,d.H-.5,d.W,0,.5,0,0x23262b);legs(g,d,.5,0x23262b,.2);cylY(g,.3,Math.max(2,P.wall+3-d.H),0,d.H,0,0x555b63);return g;}},
   loft:{n:'Loft',g:'Loft',L:16,W:12,H:8,extra:3.5,resize:true,step:1,stepH:.5,labels:{H:'Floor height'},lim:{L:[6,48],W:[6,32],H:[6,14]},b:d=>{const g=new THREE.Group(),wood=0x9a7b4f;
     box(g,d.L,JOIST,d.W,0,d.H-JOIST,0,mat(0xb98a4e,{transparent:true,opacity:.78}));
-    const n=Math.max(1,Math.ceil(d.L/10));for(let i=0;i<=n;i++){const x=-d.L/2+.25+i*(d.L-.5)/n;[-1,1].forEach(sd=>{box(g,.5,d.H-JOIST,.5,x,0,sd*(d.W/2-.25),wood);box(g,.2,3.5,.2,x,d.H,sd*(d.W/2-.1),wood);});}
-    [-1,1].forEach(sd=>{box(g,d.L,.2,.2,0,d.H+3.4,sd*(d.W/2-.1),wood);box(g,d.L,.12,.12,0,d.H+1.8,sd*(d.W/2-.1),wood);box(g,.2,.2,d.W,sd*(d.L/2-.1),d.H+3.4,0,wood);box(g,.12,.12,d.W,sd*(d.L/2-.1),d.H+1.8,0,wood);});
+    const n=Math.max(1,Math.ceil(d.L/10));for(let i=0;i<=n;i++){const x=-d.L/2+.25+i*(d.L-.5)/n;[-1,1].forEach(sd=>box(g,.5,d.H-JOIST,.5,x,0,sd*(d.W/2-.25),wood));}
     return g;}},
   stairs:{n:'Loft stairs',g:'Loft',L:10.5,W:3.5,H:8,resize:true,keys:['W','H'],labels:{H:'Climbs'},lim:{W:[2.5,6],H:[6,14]},derive:d=>{d.L=Math.round(d.H*4/3*2)/2;},b:d=>{const g=new THREE.Group(),n=Math.max(3,Math.round(d.H*12/7.5)),run=d.L/n,rise=d.H/n;
     for(let i=0;i<n;i++)box(g,run+.05,.15,d.W,-d.L/2+run*(i+.5),rise*(i+1)-.15,0,0xb98a4e);
     [-1,1].forEach(sd=>{const st=new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(d.L,d.H),.9,.15),mat(0x9a7b4f));st.position.set(0,d.H/2-.3,sd*(d.W/2));st.rotation.z=Math.atan2(d.H,d.L);g.add(st);});return g;}},
-  ladder:{n:'Loft ladder',g:'Loft',L:1,W:2,H:8,extra:3,resize:true,keys:['H'],labels:{H:'Climbs'},lim:{H:[6,14]},b:d=>{const g=new THREE.Group();[-1,1].forEach(sd=>box(g,.15,d.H+3,.15,0,0,sd*(d.W/2-.08),0x9a7b4f));
-    const n=Math.round(d.H);for(let i=1;i<=n;i++)box(g,.12,.12,d.W-.16,0,i*d.H/n-.06,0,0x9a7b4f);return g;}},
   custom:{n:'Custom box',g:'Other',L:6,W:4,H:4,resize:true,b:d=>plain(d,0xb98a4e)},
   person:{n:'Person, 6 ft',g:'Other',L:1.6,W:1.6,H:6,b:d=>{const g=new THREE.Group();cylY(g,.7,4.9,0,0,0,0x1f4fd1);const s=new THREE.Mesh(new THREE.SphereGeometry(.55,14,10),mat(0xe0b890));s.position.set(0,5.45,0);g.add(s);return g;}}
 };
@@ -481,7 +478,25 @@ function removeItemMesh(it){if(it.g){itemsG.remove(it.g);it.g.traverse(c=>{if(c.
 function buildItem(it){removeItemMesh(it);const g=CAT[it.t].b(dims(it));g.userData.pick={kind:'item',id:it.i};it.g=g;itemsG.add(g);
   const tx=textTexture([CAT[it.t].n],'#ffffff','rgba(28,42,58,.82)'),sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx.t,depthWrite:false}));
   sp.scale.set(1.5*tx.asp,1.5,1);it.lab=sp;labelsG.add(sp);placeItem(it);}
-function placeItem(it){it.g.position.set(it.x,0,it.z);it.g.rotation.y=-it.r*Math.PI/180;it.lab.position.set(it.x,elev(it.t)+dims(it).H+(CAT[it.t].extra||0)+1.6,it.z);}
+/* loft railing: left off any side that sits against a solid wall, and opened where stairs arrive */
+function againstWall(A,B){const len=Math.hypot(B[0]-A[0],B[1]-A[1]);for(const id in walls){const w=walls[id];if(w.state!=='solid')continue;const a=w.def.a;
+    const dA=Math.abs((A[0]-a[0])*w.dz-(A[1]-a[1])*w.dx),dB=Math.abs((B[0]-a[0])*w.dz-(B[1]-a[1])*w.dx);if(dA>1.25||dB>1.25)continue;
+    const uA=(A[0]-a[0])*w.dx+(A[1]-a[1])*w.dz,uB=(B[0]-a[0])*w.dx+(B[1]-a[1])*w.dz,ov=Math.min(Math.max(uA,uB),w.L)-Math.max(Math.min(uA,uB),0);if(ov>=len*.5)return true;}return false;}
+function loftRails(it){const g=it.g,d=dims(it),r=it.r*Math.PI/180,c=Math.cos(r),sn=Math.sin(r),toWorld=q=>[it.x+q[0]*c-q[1]*sn,it.z+q[0]*sn+q[1]*c],wood=0x9a7b4f;
+  if(g.userData.rails){g.remove(g.userData.rails);emptyGroup(g.userData.rails);}
+  const rg=new THREE.Group();g.userData.rails=rg;g.add(rg);let sides=0;
+  const edges=[{len:d.L,x:true,at:t=>[-d.L/2+t,d.W/2],off:[0,-.1]},{len:d.L,x:true,at:t=>[-d.L/2+t,-d.W/2],off:[0,.1]},{len:d.W,x:false,at:t=>[d.L/2,-d.W/2+t],off:[-.1,0]},{len:d.W,x:false,at:t=>[-d.L/2,-d.W/2+t],off:[.1,0]}];
+  const tops=items.filter(q=>q.t==='stairs').map(q=>{const ds=dims(q),rs=q.r*Math.PI/180;return {x:q.x+ds.L/2*Math.cos(rs),z:q.z+ds.L/2*Math.sin(rs),w:ds.W};});
+  edges.forEach(e=>{const A=toWorld(e.at(0)),B=toWorld(e.at(e.len)); if(againstWall(A,B))return; sides++;
+    const ex=(B[0]-A[0])/e.len,ez=(B[1]-A[1])/e.len,gaps=[],segs=[];
+    tops.forEach(tp=>{const t=(tp.x-A[0])*ex+(tp.z-A[1])*ez,dist=Math.abs((tp.x-A[0])*ez-(tp.z-A[1])*ex);if(dist<=1.5&&t>-1&&t<e.len+1)gaps.push([t-tp.w/2-.15,t+tp.w/2+.15]);});
+    gaps.sort((a,b)=>a[0]-b[0]);let t0=0;gaps.forEach(([a,b])=>{if(a>t0)segs.push([t0,Math.min(a,e.len)]);t0=Math.max(t0,b);});if(t0<e.len)segs.push([t0,e.len]);
+    segs.forEach(([a,b])=>{const len=b-a;if(len<.4)return;const m=e.at((a+b)/2),mx=m[0]+e.off[0],mz=m[1]+e.off[1];
+      if(e.x){box(rg,len,.2,.2,mx,d.H+3.4,mz,wood);box(rg,len,.12,.12,mx,d.H+1.8,mz,wood);}else{box(rg,.2,.2,len,mx,d.H+3.4,mz,wood);box(rg,.12,.12,len,mx,d.H+1.8,mz,wood);}
+      const n=Math.max(1,Math.ceil(len/6));for(let i=0;i<=n;i++){const q=e.at(a+len*i/n);box(rg,.2,3.5,.2,q[0]+e.off[0],d.H,q[1]+e.off[1],wood);}});});
+  g.userData.railSides=sides;}
+function refreshLofts(){items.forEach(it=>{if(it.t==='loft'&&it.g)loftRails(it);});}
+function placeItem(it){it.g.position.set(it.x,0,it.z);it.g.rotation.y=-it.r*Math.PI/180;it.lab.position.set(it.x,elev(it.t)+dims(it).H+(CAT[it.t].extra||0)+1.6,it.z);if(it.t==='loft'||it.t==='stairs')refreshLofts();}
 function overheadDoors(){const a=[];for(const id in walls){const w=walls[id];if(w.state==='solid')w.ops.forEach(o=>{if(o.t==='ohd')a.push({w,o});});}return a;}
 function loftOver(it){for(const lf of items){if(lf===it||lf.t!=='loft')continue;const d=dims(lf),r=lf.r*Math.PI/180,dx=it.x-lf.x,dz=it.z-lf.z,
     lx=dx*Math.cos(r)+dz*Math.sin(r),lz=-dx*Math.sin(r)+dz*Math.cos(r);if(Math.abs(lx)<=d.L/2&&Math.abs(lz)<=d.W/2)return d.H-JOIST;}return null;}
@@ -573,19 +588,19 @@ function dupSel(){const it=findItem(sel.id);if(!it)return;pushUndo();const c=Obj
 function removeSel(){if(!sel)return;if(drag)endDrag();pushUndo();
   if(sel.kind==='item'){const it=findItem(sel.id);if(it){removeItemMesh(it);items=items.filter(x=>x!==it);}}
   else if(sel.kind==='op'){const w=walls[sel.wallId];w.ops=w.ops.filter(o=>o.i!==sel.opId);buildWall(w);}
-  select(null);commit();}
+  refreshLofts();select(null);commit();}
 function resizeItem(k,by){const it=findItem(sel.id);if(!it)return;const lim=(CAT[it.t].lim||{})[k]||[.5,60],v=clamp(dims(it)[k]+by,lim[0],lim[1]);if(v===dims(it)[k])return;pushUndo();it[k]=v;buildItem(it);refreshSel();renderDock();commit();}
 function addOp(t){const w=walls[sel.wallId],d=OPS[t],o={i:nid(),t,u:0,w:d.w,h:d.h,k:d.k},want=snap(tapU==null?w.L/2:tapU);
   let ok=false; for(let n=0;n<=w.L*2&&!ok;n++){for(const sgn of [1,-1]){const u=want+sgn*n*.5;o.u=u;o.w=d.w;o.h=d.h;fitOp(w,o);if(Math.abs(o.u-u)<.01&&!overlaps(w,o)){ok=true;break;}}}
   if(!ok){toast('There is no room left on this wall for that.');return;}
-  pushUndo();w.state='solid';w.ops.push(o);buildWall(w);updateFade();select({kind:'op',wallId:w.def.id,opId:o.i});commit();}
+  pushUndo();w.state='solid';w.ops.push(o);buildWall(w);refreshLofts();updateFade();select({kind:'op',wallId:w.def.id,opId:o.i});commit();}
 function resizeOp(k,by){const w=walls[sel.wallId],o=findOp(sel.wallId,sel.opId);if(!o)return;const d=OPS[o.t],was={w:o.w,h:o.h,u:o.u,eh:o.eh};
   if(k==='w')o.w=clamp(o.w+by,d.minW,d.maxW);else o.h=clamp(Math.min(o.h,o.eh)+by,d.minH,d.maxH); fitOp(w,o);
   const bad=overlaps(w,o),same=o.w===was.w&&o.eh===was.eh;
   if(bad||same){Object.assign(o,was);if(bad)toast('There is no room to make it wider here.');else if(by>0)toast(k==='w'?'That is as wide as it goes.':'That is as tall as this wall allows.');return;}
   const now={w:o.w,h:o.h,u:o.u,eh:o.eh};Object.assign(o,was);pushUndo();Object.assign(o,now);buildWall(w);refreshSel();renderDock();commit();}
 function setSlide(v){const w=walls[sel.wallId],o=findOp(sel.wallId,sel.opId);if(!o||(o.d||0)===v)return;pushUndo();o.d=v;buildWall(w);refreshSel();renderDock();commit();}
-function setWallState(s){const w=walls[sel.wallId];if(w.state===s)return;pushUndo();w.state=s;buildWall(w);updateFade();refreshSel();renderDock();commit();}
+function setWallState(s){const w=walls[sel.wallId];if(w.state===s)return;pushUndo();w.state=s;buildWall(w);refreshLofts();updateFade();refreshSel();renderDock();commit();}
 function setParam(k,by,lo,hi){const cur=k==='lean'?leanLo():k==='leanIn'?leanHi():P[k],v=clamp(cur+by,lo,hi);if(v===cur)return;pushUndo();P[k]=v;
   for(const id in walls){const w=walls[id];w.ops.forEach(o=>fitOp(w,o));buildWall(w);}
   buildRoof();items.forEach(it=>{if(CAT[it.t].dyn)buildItem(it);});renderDock();commit();}
@@ -600,7 +615,7 @@ function setColor(k,v){if(P[k]===v)return;pushUndo();P[k]=v;applyColors();render
 const TABS=[['things','Vehicles & equipment'],['doors','Doors & walls'],['size','Height & roof'],['colors','Colors']];
 function endsText(w,o){const alongX=Math.abs(w.dx)>.5,a=alongX?'left':'back',b=alongX?'right':'front';
   return ft(o.w)+' wide × '+ft(o.eh)+' tall · '+ft(o.u-o.w/2)+' from the '+a+' corner, '+ft(w.L-o.u-o.w/2)+' from the '+b+' corner';}
-function itemText(it){const d=dims(it),c=CAT[it.t];if(it.t==='loft'){const r=roofAt(it.x,it.z);return ft(d.L)+' long × '+ft(d.W)+' wide · floor '+ft(d.H)+' up · '+ft(d.H-JOIST)+' clear underneath'+(r!=null&&r>d.H?' · '+ft(r-d.H)+' headroom on top':'');}
+function itemText(it){const d=dims(it),c=CAT[it.t];if(it.t==='loft'){const r=roofAt(it.x,it.z);return ft(d.L)+' long × '+ft(d.W)+' wide · floor '+ft(d.H)+' up · '+ft(d.H-JOIST)+' clear underneath'+(r!=null&&r>d.H?' · '+ft(r-d.H)+' headroom on top':'')+(it.g?' · railing on '+it.g.userData.railSides+(it.g.userData.railSides===1?' side':' sides'):'');}
   return ft(d.L)+' long × '+ft(d.W)+' wide × '+ft(d.H)+' tall'+(c.hang?' · hangs '+ft(elev(it.t))+' off the floor':'');}
 function updateSelText(){const el=$('selDims');if(!el||!sel)return;
   if(sel.kind==='op'){const o=findOp(sel.wallId,sel.opId);if(o)el.textContent=endsText(walls[sel.wallId],o);}
@@ -693,7 +708,7 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,'This is a model of the barn with the new lean-tos. Nothing you do here can break anything, and Undo takes back the last change.'),
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
-  h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform, stairs and a ladder. Set how long, wide and high the loft is, and it tells you the room underneath and on top.'),
+  h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
   h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print.'),
