@@ -352,7 +352,7 @@ function applyColors(){roofMat.color.set(P.roof);for(const id in walls){const m=
 
 function defaultState(){const s={v:1,b:Object.assign({},DEF_P),walls:{},items:EXAMPLE_ITEMS.map(i=>Object.assign({i:nid()},i))};
   WALL_DEFS.forEach(d=>s.walls[d.id]={s:d.s,o:d.o.map(o=>Object.assign({i:nid()},o))});return s;}
-function getState(){const s={v:1,b:Object.assign({},P),walls:{},items:items.map(it=>{const o={i:it.i,t:it.t,x:it.x,z:it.z,r:it.r};['L','W','H'].forEach(k=>{if(it[k]!=null)o[k]=it[k];});return o;})};
+function getState(){const s={v:1,b:Object.assign({},P),walls:{},items:items.map(it=>{const o={i:it.i,t:it.t,x:it.x,z:it.z,r:it.r};if(it.up)o.up=1;['L','W','H'].forEach(k=>{if(it[k]!=null)o[k]=it[k];});return o;})};
   for(const id in walls)s.walls[id]={s:walls[id].state,o:walls[id].ops.map(o=>({i:o.i,t:o.t,u:o.u,w:o.w,h:o.h,k:o.k,d:o.d||0}))};return s;}
 function applyState(s){
   if(drag){drag=null;controls.enabled=true;}
@@ -371,7 +371,8 @@ function applyState(s){
   (Array.isArray(s.items)?s.items:[]).forEach(it=>{if(!it||!has(CAT,it.t))return;
     const o={i:freshId(it.i),t:it.t,x:clamp(num(it.x,30),-30,90),z:clamp(num(it.z,24),-30,90),r:((num(it.r,0)%360)+360)%360};
     if(CAT[it.t].resize)['L','W','H'].forEach(k=>{if(it[k]!=null)o[k]=clamp(num(it[k],CAT[it.t][k]),.5,60);});
-    items.push(o); buildItem(o);});
+    if(it.up)o.up=true; items.push(o); buildItem(o);});
+  items.forEach(q=>{if(q.up)placeItem(q);});
   refreshLofts(); sel=null; updateFade(); refreshSel(); renderDock(); redraw();}
 /* projects: each is one saved version of the barn, kept in this browser */
 const PKEY=KEY+'.projects'; let projects=[], curId=null;
@@ -562,15 +563,21 @@ function loftRails(it){const g=it.g,d=dims(it),r=it.r*Math.PI/180,c=Math.cos(r),
       const n=Math.max(1,Math.ceil(len/6));for(let i=0;i<=n;i++){const q=e.at(a+len*i/n);box(rg,.2,3.5,.2,q[0]+e.off[0],d.H,q[1]+e.off[1],wood);}});});
   g.userData.railSides=sides;}
 function refreshLofts(){items.forEach(it=>{if(it.t==='loft'&&it.g)loftRails(it);});}
-function placeItem(it){it.g.position.set(it.x,0,it.z);it.g.rotation.y=-it.r*Math.PI/180;it.lab.position.set(it.x,elev(it.t)+dims(it).H+(CAT[it.t].extra||0)+1.6,it.z);if(it.t==='loft'||it.t==='stairs')refreshLofts();}
+function placeItem(it){const y=baseY(it);it.g.position.set(it.x,y,it.z);it.g.rotation.y=-it.r*Math.PI/180;it.lab.position.set(it.x,y+elev(it.t)+dims(it).H+(CAT[it.t].extra||0)+1.6,it.z);
+  if(it.t==='loft'||it.t==='stairs')refreshLofts(); if(it.t==='loft')items.forEach(q=>{if(q.up&&q.g&&q!==it)placeItem(q);});}
 function overheadDoors(){const a=[];for(const id in walls){const w=walls[id];if(w.state==='solid')w.ops.forEach(o=>{if(o.t==='ohd')a.push({w,o});});}return a;}
-function loftOver(it){for(const lf of items){if(lf===it||lf.t!=='loft')continue;const d=dims(lf),r=lf.r*Math.PI/180,dx=it.x-lf.x,dz=it.z-lf.z,
-    lx=dx*Math.cos(r)+dz*Math.sin(r),lz=-dx*Math.sin(r)+dz*Math.cos(r);if(Math.abs(lx)<=d.L/2&&Math.abs(lz)<=d.W/2)return d.H-JOIST;}return null;}
+const canSit=it=>!CAT[it.t].hang&&CAT[it.t].g!=='Loft';
+function loftAt(it){for(const lf of items){if(lf===it||lf.t!=='loft')continue;const d=dims(lf),r=lf.r*Math.PI/180,dx=it.x-lf.x,dz=it.z-lf.z,
+    lx=dx*Math.cos(r)+dz*Math.sin(r),lz=-dx*Math.sin(r)+dz*Math.cos(r);if(Math.abs(lx)<=d.L/2&&Math.abs(lz)<=d.W/2)return lf;}return null;}
+/* floor level an item stands on: the loft deck when it has been put up there and is still over a loft */
+function baseY(it){if(!it.up||!canSit(it))return 0;const lf=loftAt(it);return lf?dims(lf).H:0;}
 function headroomNote(it){const c=CAT[it.t]; if(c.hang)return null; const r=roofAt(it.x,it.z),H=dims(it).H; if(r==null)return null;
   if(it.t==='loft'){const top=r-H;return top<0?'The loft floor is above the roof here. The roof is '+ft(r)+' high.':top<6.5?'Only '+ft(top)+' of headroom on top of the loft. Raise the walls or lower the loft floor.':null;}
   if(c.g==='Loft')return H>r?'These climb higher than the roof here, which is '+ft(r)+'.':null;
+  const lf=loftAt(it);
+  if(lf&&it.up){const room=r-dims(lf).H;return H>room?'Too tall for the loft here. There is '+ft(Math.max(0,room))+' of headroom on top.':null;}
   if(H>r)return 'Too tall for this spot. The roof here is '+ft(r)+' high.';
-  const under=loftOver(it); if(under!=null&&H>under)return 'Too tall to go under the loft. There is '+ft(under)+' underneath.';
+  if(lf&&H>dims(lf).H-JOIST)return 'Too tall to go under the loft. There is '+ft(dims(lf).H-JOIST)+' underneath.';
   if(c.g==='Vehicles'||c.g==='Trailers & boats'){const d=overheadDoors(); if(d.length){const top=Math.max(...d.map(x=>x.o.eh)); if(H>top)return 'Too tall for the overhead doors. The tallest door is '+ft(top)+'.';}}
   return null;}
 
@@ -602,7 +609,7 @@ function select(s){sel=s;refreshSel();renderDock();}
 let drag=null, down=null; const active=new Set();
 function endDrag(){drag=null;controls.enabled=true;}
 function cancelDrag(){if(!drag)return; if(drag.moved){dropUndo();
-    if(drag.kind==='item'){drag.it.x=drag.sx;drag.it.z=drag.sz;placeItem(drag.it);} else{drag.o.u=drag.su;fitOp(drag.w,drag.o);buildWall(drag.w);}
+    if(drag.kind==='item'){drag.it.x=drag.sx;drag.it.z=drag.sz;drag.riders.forEach(k=>{k.q.x=drag.sx+k.dx;k.q.z=drag.sz+k.dz;});placeItem(drag.it);} else{drag.o.u=drag.su;fitOp(drag.w,drag.o);buildWall(drag.w);}
     refreshSel();updateSelText();}
   endDrag();down=null;redraw();}
 canvas.addEventListener('pointerdown',e=>{closeMenu();
@@ -613,7 +620,7 @@ canvas.addEventListener('pointerdown',e=>{closeMenu();
   const hit=pick(e);
   if(mode==='arrange'&&hit&&hit.kind==='item'){const it=findItem(hit.id),pl=new THREE.Plane(UP,-hit.pt.y),p=planePoint(e,pl); if(!it||!p)return;
     if(!sel||sel.id!==it.i)select({kind:'item',id:it.i});
-    drag={kind:'item',it,pl,ox:it.x-p.x,oz:it.z-p.z,sx:it.x,sz:it.z,snap:JSON.stringify(getState()),moved:false,pid:e.pointerId};}
+    drag={kind:'item',it,pl,riders:it.t==='loft'?items.filter(q=>q.up&&canSit(q)&&loftAt(q)===it).map(q=>({q,dx:q.x-it.x,dz:q.z-it.z})):[],ox:it.x-p.x,oz:it.z-p.z,sx:it.x,sz:it.z,snap:JSON.stringify(getState()),moved:false,pid:e.pointerId};}
   else if(mode==='build'&&hit&&hit.kind==='op'){const w=walls[hit.wallId],o=findOp(hit.wallId,hit.opId),u=wallU(w,e); if(!o||u==null)return;
     if(!sel||sel.opId!==o.i)select({kind:'op',wallId:hit.wallId,opId:o.i});
     drag={kind:'op',w,o,off:o.u-u,su:o.u,snap:JSON.stringify(getState()),moved:false,pid:e.pointerId};}
@@ -622,7 +629,7 @@ canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.pid)retur
   if(!drag.moved&&down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8)return;
   if(drag.kind==='item'){const p=planePoint(e,drag.pl);if(!p)return;const x=clamp(snap(p.x+drag.ox),-30,90),z=clamp(snap(p.z+drag.oz),-30,90);
     if(x===drag.it.x&&z===drag.it.z)return; if(!drag.moved){drag.moved=true;pushUndo(drag.snap);}
-    drag.it.x=x;drag.it.z=z;placeItem(drag.it); if(selBox)selBox.update();}
+    drag.it.x=x;drag.it.z=z;drag.riders.forEach(k=>{k.q.x=x+k.dx;k.q.z=z+k.dz;});placeItem(drag.it); if(selBox)selBox.update();}
   else{const u=wallU(drag.w,e);if(u==null)return;const o=drag.o,before=o.u;o.u=snap(u+drag.off);fitOp(drag.w,o);
     if(overlaps(drag.w,o)||o.u===before){o.u=before;fitOp(drag.w,o);return;}
     if(!drag.moved){drag.moved=true;pushUndo(drag.snap);} buildWall(drag.w);refreshSel();}
@@ -647,8 +654,11 @@ window.addEventListener('keydown',e=>{
 
 /* ================= actions ================= */
 function addItem(t){pushUndo();const d=CAT[t],it={i:nid(),t,x:snap(clamp(controls.target.x,2,58)),z:snap(clamp(controls.target.z,2,46)),r:d.L>d.W?90:0};
-  for(let n=0;n<20&&items.some(o=>o.x===it.x&&o.z===it.z);n++){it.x+=2;it.z+=2;}
+  const lf=sel&&sel.kind==='item'&&findItem(sel.id);
+  if(lf&&lf.t==='loft'&&canSit(it)){it.x=lf.x;it.z=lf.z;it.r=lf.r;it.up=true;}
+  else for(let n=0;n<20&&items.some(o=>o.x===it.x&&o.z===it.z);n++){it.x+=2;it.z+=2;}
   items.push(it);buildItem(it);select({kind:'item',id:it.i});commit();}
+function toggleUp(){const it=findItem(sel.id);if(!it)return;pushUndo();it.up=!it.up;placeItem(it);refreshSel();renderDock();commit();}
 function rotateSel(by){const it=findItem(sel.id);if(!it)return;pushUndo();it.r=((it.r+by)%360+360)%360;placeItem(it);refreshSel();commit();}
 function dupSel(){const it=findItem(sel.id);if(!it)return;pushUndo();const c=Object.assign({},it,{i:nid(),x:it.x+3,z:it.z+3,g:null,lab:null});items.push(c);buildItem(c);select({kind:'item',id:c.i});commit();}
 function removeSel(){if(!sel)return;if(drag)endDrag();pushUndo();
@@ -682,7 +692,7 @@ const TABS=[['things','Vehicles & equipment'],['doors','Doors & walls'],['size',
 function endsText(w,o){const alongX=Math.abs(w.dx)>.5,a=alongX?'left':'back',b=alongX?'right':'front';
   return ft(o.w)+' wide × '+ft(o.eh)+' tall · '+ft(o.u-o.w/2)+' from the '+a+' corner, '+ft(w.L-o.u-o.w/2)+' from the '+b+' corner';}
 function itemText(it){const d=dims(it),c=CAT[it.t];if(it.t==='loft'){const r=roofAt(it.x,it.z);return ft(d.L)+' long × '+ft(d.W)+' wide · floor '+ft(d.H)+' up · '+ft(d.H-JOIST)+' clear underneath'+(r!=null&&r>d.H?' · '+ft(r-d.H)+' headroom on top':'')+(it.g?' · railing on '+it.g.userData.railSides+(it.g.userData.railSides===1?' side':' sides'):'');}
-  return ft(d.L)+' long × '+ft(d.W)+' wide × '+ft(d.H)+' tall'+(c.hang?' · hangs '+ft(elev(it.t))+' off the floor':'');}
+  return ft(d.L)+' long × '+ft(d.W)+' wide × '+ft(d.H)+' tall'+(c.hang?' · hangs '+ft(elev(it.t))+' off the floor':'')+(baseY(it)?' · on the loft':'');}
 function updateSelText(){const el=$('selDims');if(!el||!sel)return;
   if(sel.kind==='op'){const o=findOp(sel.wallId,sel.opId);if(o)el.textContent=endsText(walls[sel.wallId],o);}
   else if(sel.kind==='item'){const it=findItem(sel.id),wn=$('selWarn');if(it&&it.t==='loft')el.textContent=itemText(it);if(it&&wn){const n=headroomNote(it);wn.textContent=n||'';wn.hidden=!n;}}}
@@ -707,7 +717,9 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
       dock.append(h('div',{class:'sel'},
         h('div',{class:'what'},h('div',{class:'name'},c.n),h('div',{class:'dims',id:'selDims'},itemText(it)),h('div',{class:'warn',id:'selWarn',hidden:!note},note||'')),
         h('div',{class:'row'},h('button',{onclick:()=>rotateSel(-15)},'Turn left'),h('button',{onclick:()=>rotateSel(15)},'Turn right'),h('button',{onclick:()=>rotateSel(90)},'Quarter turn'),
+          (canSit(it)&&loftAt(it))?h('button',{class:it.up?'':'primary',onclick:toggleUp},it.up?'Put on the floor':'Put on the loft'):null,
           h('button',{onclick:dupSel},'Copy'),h('button',{class:'danger',onclick:removeSel},'Remove'))));
+      if(it.t==='loft')dock.append(h('p',{class:'hint'},'To put something on the loft, add it while the loft is selected. Or drag an item over the loft and tap Put on the loft.'));
       if(c.resize){const lab=Object.assign({L:'Long',W:'Wide',H:'Tall'},c.labels||{}),stp=k=>(k==='H'&&c.stepH)||c.step||.5;
         dock.append(h('div',{class:'row'},(c.keys||['L','W','H']).map(k=>stepper(lab[k],ft(d[k]),()=>resizeItem(k,-stp(k)),()=>resizeItem(k,stp(k))))));}
     } else dock.append(h('p',{class:'hint'},'Tap something below to add it, then drag it into place. Tap an item to turn or remove it. Floor squares are 2 ft.'));
@@ -795,7 +807,7 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
   h('p',null,h('b',null,'Slice: '),'cuts the barn open from the front, back or either side so you can see in. Slide to choose how much to cut away. Nothing is changed; it only hides part of the walls and roof.'),
-  h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side.'),
+  h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side. To put something up there, add it while the loft is selected.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
   h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print.'),
