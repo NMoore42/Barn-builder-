@@ -1049,7 +1049,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=44, VERSION_DATE='Nov 27';
+const VERSION=45, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1250,11 +1250,11 @@ function shareDialog(){closeMenu();
       body.append(h('div',{class:'row'},can?h('button',{class:'primary',onclick:()=>{navigator.share({files:list}).then(()=>{note.textContent='Shared.';},e=>{if(!e||e.name!=='AbortError')note.textContent='Sharing did not work here. Use Save it instead.';});}},'Share it'):null,
         h('button',{class:can?'':'primary',onclick:()=>savePdfFiles(files,note)},'Save it'),h('button',{onclick:menu},'Back')));
     }catch(e){note.textContent='That could not be made on this device.';body.append(h('div',{class:'row'},h('button',{onclick:menu},'Back')));}};
-  const linkFallback=text=>{body.textContent='';const ta=h('textarea',{id:'codeOut','aria-label':'Link to share'},text);
-    body.append(ta,h('div',{class:'row'},h('button',{class:'primary',onclick:()=>copyText(text,ta,note)},canLink?'Copy the link':'Copy the text'),h('button',{onclick:menu},'Back')));copyText(text,ta,note);};
-  const link=()=>{const text=shareText();
-    if(canLink&&navigator.share){navigator.share({title:"Tom's Barn Builder: "+name,url:text}).then(()=>{note.textContent='Sent.';},e=>{if(e&&e.name!=='AbortError')linkFallback(text);});return;}
-    linkFallback(text);};
+  const link=()=>{const text=shareText();body.textContent='';
+    const ta=h('textarea',{id:'codeOut','aria-label':'Link to share',readonly:true},text);
+    body.append(h('p',{class:'dims'},'This is the link that will be sent. It is '+text.length+' characters long and should end with the same letters on the other phone.'),ta,
+      h('div',{class:'row'},(canLink&&navigator.share)?h('button',{class:'primary',onclick:()=>{navigator.share({url:text}).then(()=>{note.textContent='Sent.';},e=>{if(e&&e.name!=='AbortError')note.textContent='Sending did not work here. Use Copy the link instead.';});}},'Send it'):null,
+        h('button',{class:(canLink&&navigator.share)?'':'primary',onclick:()=>copyText(text,ta,note)},canLink?'Copy the link':'Copy the text'),h('button',{onclick:menu},'Back')));};
   const menu=()=>{body.textContent='';note.textContent='';body.append(
     opt('3D pictures','A PDF with five pictures of the barn, inside and out',()=>pdf('views')),
     opt('Blueprint','A PDF of the four blueprint sheets with measurements',()=>pdf('plans')),
