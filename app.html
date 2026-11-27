@@ -137,6 +137,7 @@ button:disabled{opacity:.45;cursor:default}
     <div class="group">
       <button id="btnUndo" disabled>Undo</button>
       <button id="btnSlice" aria-pressed="false">Slice</button>
+      <button id="btnMeasure" aria-pressed="false">Measure</button>
       <button id="btnBlueprint">Blueprint</button>
       <button id="btnMore" aria-expanded="false">Help &amp; more</button>
     </div>
@@ -158,6 +159,12 @@ button:disabled{opacity:.45;cursor:default}
     <label for="sliceRange" class="dims" id="sliceLabel">How much to cut away</label>
     <input type="range" id="sliceRange" min="0" max="50" step="1" value="25">
     <div class="row"><button id="sliceDone" class="primary">Done</button><button id="sliceOff">Put it back together</button></div>
+  </div>
+
+  <div class="slice" id="measurePanel" hidden>
+    <div class="name">Measure</div>
+    <div class="dims" id="measureLabel" role="status">Tap the first spot, then the second.</div>
+    <div class="row"><button id="measureDone" class="primary">Done measuring</button><button id="measureClear">Clear</button></div>
   </div>
 
   <div class="toast" id="toast" role="status" hidden></div>
@@ -599,7 +606,7 @@ canvas.addEventListener('pointerdown',e=>{closeMenu();
   if(active.size>1){cancelDrag();down=null;return;}
   if(drag)cancelDrag();
   down={x:e.clientX,y:e.clientY,t:performance.now(),pid:e.pointerId};
-  const hit=pick(e);
+  const hit=measure.on?null:pick(e);
   if(mode==='arrange'&&hit&&hit.kind==='item'){const it=findItem(hit.id),pl=new THREE.Plane(UP,-hit.pt.y),p=planePoint(e,pl); if(!it||!p)return;
     if(!sel||sel.id!==it.i)select({kind:'item',id:it.i});
     drag={kind:'item',it,pl,riders:it.t==='loft'?items.filter(q=>q.up&&canSit(q)&&loftAt(q)===it).map(q=>({q,dx:q.x-it.x,dz:q.z-it.z})):[],ox:it.x-p.x,oz:it.z-p.z,sx:it.x,sz:it.z,snap:JSON.stringify(getState()),moved:false,pid:e.pointerId};}
@@ -620,6 +627,7 @@ function finishDrag(){const moved=drag.moved;endDrag();down=null;if(moved){commi
 function endPointer(e){
   if(drag){ if(e.pointerId!==drag.pid)return; if(e.type==='pointercancel')cancelDrag(); else finishDrag(); return;}
   if(!down||down.pid!==e.pointerId)return; const tap=e.type==='pointerup'&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8&&performance.now()-down.t<500; down=null; if(!tap)return;
+  if(measure.on){measureTap(e);return;}
   if(mode==='arrange'){if(sel)select(null);return;}
   if(mode!=='build')return;
   const hit=pick(e);
@@ -755,12 +763,36 @@ function applySlice(){const f=slice.from,deep=f==='front'||f==='back',max=(deep?
   $('sliceLabel').textContent=d<=1?'Slide to cut into the barn from '+SLICE_WORDS[f]+'.':'Cutting away '+(d-1)+' ft from '+SLICE_WORDS[f]+'.';
   document.querySelectorAll('#slicePanel [data-from]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.from===f)));
   $('btnSlice').setAttribute('aria-pressed',String(slice.on));redraw();}
-function openSlice(){closeMenu();slice.on=true;const p=$('slicePanel');p.style.top=(document.querySelector('.bar').offsetHeight+4)+'px';p.hidden=false;applySlice();}
+function openSlice(){closeMenu();if(measure.on)setMeasure(false);slice.on=true;const p=$('slicePanel');p.style.top=(document.querySelector('.bar').offsetHeight+4)+'px';p.hidden=false;applySlice();}
 $('btnSlice').onclick=()=>{if(slice.on&&!$('slicePanel').hidden){$('slicePanel').hidden=true;return;}openSlice();};
 $('sliceDone').onclick=()=>{$('slicePanel').hidden=true;};
 $('sliceOff').onclick=()=>{slice.on=false;$('slicePanel').hidden=true;applySlice();};
 $('sliceRange').addEventListener('input',e=>{slice.d[slice.from]=+e.target.value;applySlice();});
 document.querySelectorAll('#slicePanel [data-from]').forEach(b=>{b.onclick=()=>{slice.from=b.dataset.from;applySlice();};});
+
+/* ================= measure ================= */
+const measure={on:false,a:null,b:null,lab:null}, measureG=new THREE.Group(), floorPlane=new THREE.Plane(UP,0); scene.add(measureG);
+const measureMat=new THREE.MeshBasicMaterial({color:0x1f4fd1,depthTest:false,transparent:true});
+function measurePoint(e){setRay(e);
+  const hit=ray.intersectObjects([wallsG,itemsG],true).find(x=>{if(slicePlane.distanceToPoint(x.point)<-.01)return false;const k=pickOf(x.object);return !(k&&k.wallId&&walls[k.wallId].faded);});
+  if(hit)return {x:hit.point.x,z:hit.point.z}; return ray.ray.intersectPlane(floorPlane,tmp)?{x:tmp.x,z:tmp.z}:null;}
+function drawMeasure(){emptyGroup(measureG);if(measure.lab){measure.lab.material.map.dispose();measure.lab.material.dispose();measure.lab=null;}
+  const a=measure.a,b=measure.b,dot=q=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.1,20),measureMat);m.position.set(q.x,.08,q.z);m.renderOrder=10;measureG.add(m);};
+  let text='Tap the first spot, then the second.';
+  if(a){dot(a);text='Now tap the second spot.';}
+  if(a&&b){dot(b);const dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz),line=new THREE.Mesh(new THREE.BoxGeometry(Math.max(len,.01),.08,.22),measureMat);
+    line.position.set((a.x+b.x)/2,.08,(a.z+b.z)/2);line.rotation.y=-Math.atan2(dz,dx);line.renderOrder=10;measureG.add(line);
+    const tx=textTexture([ft(len)],'#ffffff','rgba(31,79,209,.96)'),sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx.t,depthTest:false,depthWrite:false}));
+    sp.scale.set(2.2*tx.asp,2.2,1);sp.position.set((a.x+b.x)/2,3.2,(a.z+b.z)/2);sp.renderOrder=11;measureG.add(sp);measure.lab=sp;
+    text='That is '+ft(len)+'. Tap a new spot to measure something else.';}
+  $('measureLabel').textContent=text;redraw();}
+function measureTap(e){const q=measurePoint(e);if(!q)return;if(!measure.a||measure.b){measure.a=q;measure.b=null;}else measure.b=q;drawMeasure();}
+function setMeasure(on){measure.on=on;measure.a=measure.b=null;$('btnMeasure').setAttribute('aria-pressed',String(on));
+  const m=$('measurePanel');if(on){closeMenu();$('slicePanel').hidden=true;select(null);m.style.top=(document.querySelector('.bar').offsetHeight+4)+'px';}
+  m.hidden=!on;drawMeasure();}
+$('btnMeasure').onclick=()=>setMeasure(!measure.on);
+$('measureDone').onclick=()=>setMeasure(false);
+$('measureClear').onclick=()=>{measure.a=measure.b=null;drawMeasure();};
 
 /* ================= menu, dialogs ================= */
 $('btnUndo').onclick=()=>{const s=undo.pop();if(!s)return;$('btnUndo').disabled=!undo.length;applyState(JSON.parse(s));save();};
@@ -789,6 +821,7 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
   h('p',null,h('b',null,'Slice: '),'cuts the barn open from the front, back or either side so you can see in. Slide to choose how much to cut away. Nothing is changed; it only hides part of the walls and roof.'),
+  h('p',null,h('b',null,'Measure: '),'tap Measure, then tap two spots to see how far apart they are. You can tap the floor, a wall or a vehicle.'),
   h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side. To put something up there, add it while the loft is selected.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
