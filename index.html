@@ -15,7 +15,7 @@ body{margin:0}
 img{max-width:100%}
 [hidden]{display:none!important}
 </style>
-<title>Tommy's Barn Builder</title>
+<title>Tom's Barn Builder</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600&display=swap">
 <style>
@@ -108,8 +108,18 @@ button:disabled{opacity:.45;cursor:default}
 .menu{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100% - 32px));z-index:5}
 .menu button{text-align:left}
-.menu .dims{font-size:14px;line-height:1.4;padding:2px 6px 4px}
-.menu .dims b{color:var(--ink)}
+.menu{max-height:calc(100% - 90px);overflow-y:auto}
+.about{border-top:1px solid var(--line);margin-top:4px;padding:12px 4px 4px;display:flex;flex-direction:column;gap:10px}
+.about .name{font-size:20px}
+.about .by{color:var(--pencil);font-size:14px}
+.about .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.about .stat{border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.about .stat span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pencil)}
+.about .stat b{font-family:var(--font-head);font-size:21px;line-height:1.1;font-variant-numeric:tabular-nums}
+.about .tab{display:flex;align-items:center;gap:10px;background:var(--marker-soft);border-radius:8px;padding:8px 10px}
+.about .mug{color:var(--marker);flex:0 0 auto;display:flex}
+.about .tab b{display:block;font-size:15px}
+.about .tab span{display:block;font-size:13px;color:var(--pencil);line-height:1.3}
 .slice{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100% - 32px));z-index:5}
 .slice .seg button{flex:1 1 0;padding:8px 6px}
@@ -150,7 +160,7 @@ button:disabled{opacity:.45;cursor:default}
   <canvas id="scene" tabindex="0" aria-label="3D view of the barn"></canvas>
 
   <header class="bar">
-    <h1 class="brand">Tommy's Barn Builder<small>Software by Nick Moore</small></h1>
+    <h1 class="brand">Tom's Barn Builder<small>Software by Nick Moore</small></h1>
     <button id="btnProject" class="projbtn" aria-haspopup="dialog">Project</button>
     <div class="spacer"></div>
     <div class="seg" role="group" aria-label="How to look at it">
@@ -175,7 +185,7 @@ button:disabled{opacity:.45;cursor:default}
     <button id="mPdf">Share pictures and blueprint as PDFs</button>
     <button id="mRefresh">Refresh to get the latest version</button>
     <button id="mReset" class="danger">Start over from the sketch</button>
-    <div class="dims" id="mVersion"></div>
+    <div class="about" id="mVersion"></div>
   </div>
 
   <div class="slice" id="slicePanel" hidden>
@@ -876,7 +886,7 @@ const canLink=!window.claude&&/^https?:$/.test(location.protocol);
 function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encode(st);return canLink?location.origin+location.pathname+'#'+code:code;}
 function copyText(text,ta,note){const fail=()=>{ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='It could not be copied for you. The text below is selected: tap it and choose Copy.';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>{note.textContent='Copied. Paste it into a message, an email or Notes.';},fail);else fail();}
-function barnFile(){const st=getState();st.name=(curProject()||{}).name||'Barn';st.app="Tommy's Barn Builder";
+function barnFile(){const st=getState();st.name=(curProject()||{}).name||'Barn';st.app="Tom's Barn Builder";
   return {name:((st.name.replace(/[^A-Za-z0-9 _-]+/g,'').trim()||'Barn').replace(/\s+/g,'-'))+'.barn.txt',text:JSON.stringify(st)};}
 function saveBarnFile(note){const f=barnFile(),done=()=>{note.textContent='Saved as '+f.name+'. Open it later with Open a saved or shared barn.';},no=NO_FILE;
   if(dlPromise){dlPromise.then(dl=>{if(!dl){note.textContent=no;return;}dl.save({filename:f.name,data:f.text}).then(done,e=>{note.textContent=e&&e.code==='declined'?'Not saved.':no;});});return;}
@@ -891,7 +901,7 @@ $('mCopy').onclick=()=>{closeMenu();const text=shareText(),name=(curProject()||{
   dialog('Save or share this barn',
     h('p',null,'Save “'+name+'” to a file to keep a copy or move it to another device.'+(canLink?' Or send a link that opens a copy of it.':'')),
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>saveBarnFile(note)},'Save to a file'),
-      send?h('button',{onclick:()=>{navigator.share({title:"Tommy's Barn Builder: "+name,url:text}).then(()=>{note.textContent='Sent.';},()=>{});}},'Send a link'):null,
+      send?h('button',{onclick:()=>{navigator.share({title:"Tom's Barn Builder: "+name,url:text}).then(()=>{note.textContent='Sent.';},()=>{});}},'Send a link'):null,
       h('button',{onclick:()=>copyText(text,ta,note)},canLink?'Copy the link':'Copy the text'),h('button',{onclick:closeDialog},'Close')),note,ta);};
 $('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placeholder:'Or paste a link or text here'}),err=h('p',{class:'warn',role:'status'},'');
   const open=text=>{let o;try{o=decode(text);}catch(e){err.textContent='That is not a barn. Choose a file saved from this app, or paste the whole link or text.';return;}
@@ -903,7 +913,7 @@ $('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placehol
       h('button',{class:'primary',onclick:()=>open(ta.value)},'Open what I pasted'),h('button',{onclick:closeDialog},'Cancel')));};
 $('mReset').onclick=()=>{closeMenu();dialog('Start over from the sketch?',h('p',null,'This puts the building back to the original sketch and brings back the example items. Undo will reverse it.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{pushUndo();applyState(defaultState());save();closeDialog();}},'Start over'),h('button',{onclick:closeDialog},'Cancel')));};
-function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
+function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',{class:'dims'},'Software by Nick Moore'),
   h('p',null,'This is a model of the barn with the new lean-tos. Nothing you do here can break anything, and Undo takes back the last change.'),
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
@@ -915,13 +925,16 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
   h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print. Share as PDFs sends pictures of the barn in 3D along with the blueprint.'),
   h('p',null,h('b',null,'Hide: '),'the Hide button at the end of the bottom row tucks the menu away so you can see more of the barn. Show the menu brings it back.'),
-  h('p',null,h('b',null,'Settings: '),'has this help, name tags, saving a barn to a file or opening one, and Refresh, which loads the newest version of the app without touching your projects.'),
+  h('p',null,h('b',null,'Settings: '),'has this help, name tags, saving a barn to a file or opening one, and Refresh, which loads the newest version of the app. Refreshing keeps your projects.'),
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=27, VERSION_DATE='November 27';
-$('mVersion').append(h('div',null,h('b',null,"Tommy's Barn Builder"),', version '+VERSION+' ('+VERSION_DATE+')'),h('div',null,'Software by Nick Moore'),
-  h('div',null,'Price: free, plus one cold beer per version. Tommy, your tab stands at '+VERSION+' beers.'),h('div',null,'Refreshing keeps your projects.'));
+const VERSION=28, VERSION_DATE='Nov 27';
+{const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
+  mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
+  $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
+    h('div',{class:'stats'},stat('Version',String(VERSION)),stat('Updated',VERSION_DATE),stat('Price','Free*')),
+    h('div',{class:'tab'},mug,h('div',null,h('b',null,"Tom's tab: "+VERSION+' cold beers'),h('span',null,'*One per version, payable to the programmer.'))));}
 $('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.');const go=()=>location.reload();
   try{fetch(location.href.split('#')[0],{cache:'reload'}).then(go,go);}catch(e){go();}};
 
@@ -970,7 +983,7 @@ function opTags(){const out=[];WALL_DEFS.forEach(d=>{const w=walls[d.id];if(w.st
 function sheetWrap(n,title,scaleNote,body){const today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
   return '<svg xmlns="http://www.w3.org/2000/svg" width="'+BW+'" height="'+BH+'" viewBox="0 0 '+BW+' '+BH+'" font-family="Helvetica,Arial,sans-serif">'+
     '<rect width="'+BW+'" height="'+BH+'" fill="#ffffff"/>'+sv.rect(24,24,BW-48,BH-48,2)+sv.line(24,BH-84,BW-24,BH-84,2)+
-    sv.text(40,BH-60,"TOMMY'S BARN BUILDER",15,'start',true)+sv.text(40,BH-47,'Software by Nick Moore',9)+sv.text(40,BH-33,((curProject()||{}).name||'Barn')+' · Planning drawing, check measurements before building',10)+
+    sv.text(40,BH-60,"TOM'S BARN BUILDER",15,'start',true)+sv.text(40,BH-47,'Software by Nick Moore',9)+sv.text(40,BH-33,((curProject()||{}).name||'Barn')+' · Planning drawing, check measurements before building',10)+
     sv.text(BW/2,BH-52,title,20,'middle',true)+sv.text(BW/2,BH-36,scaleNote,10,'middle')+
     sv.text(BW-40,BH-56,'Sheet '+n+' of 4',13,'end',true)+sv.text(BW-40,BH-38,today,10,'end')+body+'</svg>';}
 function planSheet(tags){const sc=10,ox=(BW-W_ALL*sc)/2,oy=130,X=x=>ox+x*sc,Y=z=>oy+z*sc;let s='';
@@ -1085,7 +1098,7 @@ function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:
 function viewsDoc(){const doc=pdfDoc(),views=captureViews(),name=(curProject()||{}).name||'Barn',today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
   views.forEach(([title,img],i)=>{if(i)doc.addPage('letter','landscape');
     doc.setTextColor(23,52,110);doc.setFont('helvetica','bold');doc.setFontSize(20);doc.text(title,.5,.7);
-    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.text(name+" - Tommy's Barn Builder, software by Nick Moore - "+today,.5,.98);doc.text('Picture '+(i+1)+' of '+views.length,10.5,.7,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.text(name+" - Tom's Barn Builder, software by Nick Moore - "+today,.5,.98);doc.text('Picture '+(i+1)+' of '+views.length,10.5,.7,{align:'right'});
     doc.addImage(img,'JPEG',.5,1.15,10,6.25);
     if(!i&&canLink){doc.setTextColor(31,79,209);doc.setFontSize(13);doc.textWithLink('Tap here to open this barn in 3D and look around it yourself',.5,7.85,{url:shareText()});}
     else{doc.setFontSize(10);doc.text('Planning pictures. Check all measurements before building.',.5,7.85);}});
@@ -1130,7 +1143,7 @@ if(!window.claude){$('bpPrint').hidden=false;$('bpPrint').onclick=()=>window.pri
 let saved=null;
 try{saved=JSON.parse(localStorage.getItem(KEY)||'null'); if(localStorage.getItem(KEY+'.tags')==='0'){tagsOn=false;labelsG.visible=false;$('mLabels').setAttribute('aria-pressed','false');}}catch(e){}
 loadProjects();
-if(!projects.length){projects=[{id:'p1',name:"Tommy's barn",t:Date.now()}];curId='p1';writeProject('p1',saved&&saved.walls?saved:defaultState());saveProjects();}
+if(!projects.length){projects=[{id:'p1',name:"Tom's barn",t:Date.now()}];curId='p1';writeProject('p1',saved&&saved.walls?saved:defaultState());saveProjects();}
 if(!curProject())curId=projects[0].id;
 {const s0=readProject(curId);try{applyState(s0&&s0.walls?s0:defaultState());}catch(e){applyState(defaultState());}}
 updateProjectButton();

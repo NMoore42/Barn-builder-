@@ -1,4 +1,4 @@
-# Tommy's Barn Builder
+# Tom's Barn Builder
 
 A touch-first 3D planner for a pole barn addition. Arrange vehicles and equipment, add doors and windows, change wall height, roof pitch and colors, keep several named projects, and print a four-sheet blueprint.
 
