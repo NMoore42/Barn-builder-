@@ -906,7 +906,7 @@ $('btnUndo').onclick=()=>{const s=undo.pop();if(!s)return;$('btnUndo').disabled=
 function closeMenu(){$('menu').hidden=true;$('btnMore').setAttribute('aria-expanded','false');}
 $('btnMore').onclick=()=>{const m=$('menu');m.style.top=(document.querySelector('.bar').offsetHeight+2)+'px';m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
 $('mLabels').onclick=()=>{tagsOn=!tagsOn;labelsG.visible=tagsOn&&view!=='outside';$('mLabels').setAttribute('aria-pressed',String(tagsOn));try{localStorage.setItem(KEY+'.tags',tagsOn?'1':'0');}catch(e){}redraw();};
-function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true;},3200);}
+function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true;},Math.max(3200,msg.length*70));}
 function dialog(title,...body){const s=$('sheet');s.textContent='';s.append(h('h2',null,title),...body);$('modal').hidden=false;}
 function closeDialog(){$('modal').hidden=true;}
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeDialog();});
@@ -921,8 +921,13 @@ function decode(txt){const raw=String(txt),first=raw.trim();
   if(!cands.length)throw new Error('none');
   for(const c of cands)for(let n=0;n<=Math.min(400,c.length-8);n++){try{return one(c.slice(0,c.length-n));}catch(e){}}
   throw new Error('shape');}
-function loadShared(o){const before=JSON.stringify(getState());try{applyState(o);}catch(e){applyState(JSON.parse(before));return false;}
-  const good=getState();applyState(JSON.parse(before));newProject(uniqueName(cleanName(o.name)||'Shared barn'),good);return true;}
+/* a shared barn always arrives as its own project; returns the message to show, or null if it could not be read */
+function loadShared(o){const before=JSON.stringify(getState());try{applyState(o);}catch(e){applyState(JSON.parse(before));return null;}
+  const good=getState(),key=JSON.stringify(good);applyState(JSON.parse(before));
+  const same=projects.find(q=>q.id===curId?before===key:JSON.stringify(readProject(q.id))===key);
+  if(same){if(same.id!==curId)openProject(same.id);return 'You already have this barn. Showing “'+same.name+'”.';}
+  const want=cleanName(o.name)||'Shared barn',name=uniqueName(projects.some(q=>q.name===want)?want+' (shared)':want);
+  newProject(name,good);return 'Opened “'+name+'”. Your own barns are under the Project button.';}
 const canLink=!window.claude&&/^https?:$/.test(location.protocol);
 function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encode(st);return canLink?location.origin+location.pathname+'#'+code:code;}
 function copyText(text,ta,note){const fail=()=>{ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='It could not be copied for you. The text below is selected: tap it and choose Copy.';};
@@ -942,7 +947,7 @@ $('mCopy').onclick=()=>{closeMenu();const name=(curProject()||{}).name||'Barn',n
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>saveBarnFile(note)},'Save to a file'),h('button',{onclick:closeDialog},'Close')),note);};
 $('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placeholder:'Or paste a link or text here'}),err=h('p',{class:'warn',role:'status'},'');
   const open=text=>{let o;try{o=decode(text);}catch(e){err.textContent='That is not a barn. Choose a file saved from this app, or paste the whole link or text.';return;}
-    if(!loadShared(o)){err.textContent='That barn could not be opened.';return;}closeDialog();toast('Opened as a new project called '+curProject().name+'.');};
+    const m=loadShared(o);if(!m){err.textContent='That barn could not be opened.';return;}closeDialog();toast(m);};
   const pick=h('input',{type:'file',id:'barnFileIn','aria-label':'Choose a barn file'});
   pick.addEventListener('change',()=>{const f=pick.files&&pick.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>open(String(rd.result||''));rd.onerror=()=>{err.textContent='That file could not be read.';};rd.readAsText(f);});
   dialog('Open a barn',h('p',null,'Choose a file you saved from this app. It opens as a new project, and your other projects stay as they are.'),pick,ta,err,
@@ -966,7 +971,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=32, VERSION_DATE='Nov 27';
+const VERSION=33, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1228,12 +1233,16 @@ function toHomeApp(o){const text=location.origin+location.pathname+'#'+encode(o)
   ta.hidden=true;
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
-if(/BARN1/i.test(location.hash)){try{incoming=decode(location.hash);}catch(e){try{incoming=decode(decodeURIComponent(location.hash));}catch(e2){}}
-  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
-if(incoming){const nm=cleanName(incoming.name);
+function readIncoming(){let o=null;if(!/BARN1/i.test(location.hash))return null;
+  try{o=decode(location.hash);}catch(e){try{o=decode(decodeURIComponent(location.hash));}catch(e2){}}
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}return o;}
+function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
   dialog('Open the shared barn?',h('p',null,'This link has a barn layout'+(nm?' called “'+nm+'”':'')+'. It opens as a new project, and your own projects stay as they are.'),
-    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{if(loadShared(incoming)){closeDialog();toast('Opened as a new project called '+curProject().name+'.');}else toast('That layout could not be opened.');}},'Open it here'),
-      (!inHomeApp&&touchDevice)?h('button',{onclick:()=>toHomeApp(incoming)},'Open it in my Home Screen app'):null,h('button',{onclick:closeDialog},'No thanks')));}
+    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{const m=loadShared(o);if(m){closeDialog();toast(m);}else toast('That layout could not be opened.');}},'Open it here'),
+      (!inHomeApp&&touchDevice)?h('button',{onclick:()=>toHomeApp(o)},'Open it in my Home Screen app'):null,h('button',{onclick:closeDialog},'No thanks')));}
+window.addEventListener('hashchange',()=>{const o=readIncoming();if(o)offerIncoming(o);});
+incoming=readIncoming();
+if(incoming)offerIncoming(incoming);
 else if(!saved&&!seenHelp)help();
 updateInstall(); maybeInstallBar();
 window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews};
