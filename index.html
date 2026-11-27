@@ -199,8 +199,8 @@ if(!window.THREE||!THREE.OrbitControls){
 
 /* ================= the building (feet; x runs left to right, z runs back to front, seen from the front doors) ================= */
 const T=0.5, W_ALL=60, D_ALL=48;
-const DEF_P={wall:10,pitch:4,lean:7,siding:'#a8322a',roof:'#b4b9bd',door:'#f4f3ee'}, P=Object.assign({},DEF_P);
-const eave=()=>P.wall, ridge=()=>P.wall+16*P.pitch/12, leanHi=()=>P.wall-.5, leanLo=()=>Math.min(P.lean,P.wall-1.5);
+const DEF_P={wall:10,pitch:4,lean:7,leanIn:9.5,siding:'#a8322a',roof:'#b4b9bd',door:'#f4f3ee'}, P=Object.assign({},DEF_P);
+const eave=()=>P.wall, ridge=()=>P.wall+16*P.pitch/12, leanHi=()=>Math.min(P.leanIn,P.wall), leanLo=()=>Math.min(P.lean,leanHi()-.5);
 const COLORS={
   siding:[['Barn red','#a8322a'],['White','#f1f0ea'],['Cream','#e9dfc3'],['Sandstone','#cdbb9c'],['Clay','#b39b7d'],['Pewter gray','#9aa0a3'],['Slate blue','#5f7890'],['Sage green','#8a9a7b'],['Forest green','#3f5a44'],['Brown','#6b4a36'],['Charcoal','#4a4f55']],
   roof:[['Galvanized silver','#b4b9bd'],['Charcoal','#474c52'],['Black','#26282b'],['Brown','#5a4232'],['Forest green','#34503c'],['Barn red','#8f2a23'],['Slate blue','#4d657c'],['White','#eceae4']],
@@ -340,7 +340,7 @@ function applyState(s){
   const seen=new Set(),freshId=v=>{let id=typeof v==='string'||typeof v==='number'?String(v):'';if(!id||seen.has(id))id=nid();seen.add(id);return id;};
   const sw=(s.walls&&typeof s.walls==='object')?s.walls:{};
   const b=(s.b&&typeof s.b==='object')?s.b:{},hex=(v,d)=>/^#[0-9a-f]{6}$/i.test(v||'')?v:d;
-  P.wall=clamp(num(b.wall,DEF_P.wall),8,20);P.pitch=clamp(num(b.pitch,DEF_P.pitch),1,12);P.lean=clamp(num(b.lean,DEF_P.lean),5,18);
+  P.wall=clamp(num(b.wall,DEF_P.wall),8,20);P.pitch=clamp(num(b.pitch,DEF_P.pitch),1,12);P.lean=clamp(num(b.lean,DEF_P.lean),5,18);P.leanIn=clamp(num(b.leanIn,P.wall-.5),6,20);
   P.siding=hex(b.siding,DEF_P.siding);P.roof=hex(b.roof,DEF_P.roof);P.door=hex(b.door,DEF_P.door);buildRoof();applyColors();
   for(const id in walls){const ws=has(sw,id)&&sw[id]&&typeof sw[id]==='object'?sw[id]:null, w=walls[id]; w.ops=[];
     w.state=ws&&WALL_STATES.some(x=>x[0]===ws.s)?ws.s:w.def.s;
@@ -557,7 +557,7 @@ function resizeOp(k,by){const w=walls[sel.wallId],o=findOp(sel.wallId,sel.opId);
   if(bad||same){Object.assign(o,was);if(bad)toast('There is no room to make it wider here.');else if(by>0)toast(k==='w'?'That is as wide as it goes.':'That is as tall as this wall allows.');return;}
   const now={w:o.w,h:o.h,u:o.u,eh:o.eh};Object.assign(o,was);pushUndo();Object.assign(o,now);buildWall(w);refreshSel();renderDock();commit();}
 function setWallState(s){const w=walls[sel.wallId];if(w.state===s)return;pushUndo();w.state=s;buildWall(w);updateFade();refreshSel();renderDock();commit();}
-function setParam(k,by,lo,hi){const v=clamp(P[k]+by,lo,hi);if(v===P[k])return;pushUndo();P[k]=v;
+function setParam(k,by,lo,hi){const cur=k==='lean'?leanLo():k==='leanIn'?leanHi():P[k],v=clamp(cur+by,lo,hi);if(v===cur)return;pushUndo();P[k]=v;
   for(const id in walls){const w=walls[id];w.ops.forEach(o=>fitOp(w,o));buildWall(w);}
   buildRoof();items.forEach(it=>{if(CAT[it.t].dyn)buildItem(it);});renderDock();commit();}
 function setColor(k,v){if(P[k]===v)return;pushUndo();P[k]=v;applyColors();renderDock();commit();}
@@ -578,7 +578,8 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
   if(tab==='size'){dock.append(
       field('Wall height','Floor to the top of the main barn walls',bigstep(ft(P.wall),()=>setParam('wall',-1,8,20),()=>setParam('wall',1,8,20))),
       field('Roof pitch','How steep the main roof is. The peak is '+ft(ridge())+' high.',bigstep(P.pitch+' in 12',()=>setParam('pitch',-1,1,12),()=>setParam('pitch',1,1,12))),
-      field('Lean-to outside height','Height at the low outer edge of both lean-tos',bigstep(ft(leanLo()),()=>setParam('lean',-.5,5,P.wall-1.5),()=>setParam('lean',.5,5,P.wall-1.5))),
+      field('Lean-to inside height','Where the lean-to roof meets the barn wall',bigstep(ft(leanHi()),()=>setParam('leanIn',-.5,6,P.wall),()=>setParam('leanIn',.5,6,P.wall))),
+      field('Lean-to outside height','Height at the low outer edge. The lean-to roof slopes '+(Math.round((leanHi()-leanLo())/14*120)/10)+' in 12.',bigstep(ft(leanLo()),()=>setParam('lean',-.5,5,leanHi()-.5),()=>setParam('lean',.5,5,leanHi()-.5))),
       h('p',{class:'hint'},'The floor plan is from the sketch: 60 ft wide and 48 ft deep. Doors shrink to fit if a wall gets shorter.'));return;}
   if(tab==='colors'){[['siding','Siding'],['roof','Roof'],['door','Doors and trim']].forEach(([k,l])=>dock.append(field(l,colorName(k),
       h('div',{class:'swatches'},COLORS[k].map(c=>h('button',{class:'swatch',style:'background:'+c[1],'aria-label':l+' '+c[0],title:c[0],'aria-pressed':String(c[1]===P[k]),onclick:()=>setColor(k,c[1])}))))));return;}
