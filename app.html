@@ -954,12 +954,13 @@ function expandState(c){const st={v:1,b:Object.assign({},LINK2_BASE.b,c.b||{}),w
     st.walls[d.id]=r?{s:r[0],o:r.slice(1).filter(Array.isArray).map(([t,u,w,hh,dd])=>({t,u,w,h:hh,k:(OPS[t]||{}).k||0,d:dd||0}))}:{s:d.s,o:d.o.map(o=>Object.assign({},o))};});
   st.items=(Array.isArray(c.i)?c.i:[]).filter(Array.isArray).map(([t,x,z,r,ex])=>Object.assign({t,x,z,r},ex&&typeof ex==='object'?ex:{}));
   if(c.n)st.name=c.n;return st;}
-const encodeLink=st=>'BARN2:'+b64u(JSON.stringify(compactState(st,true)));
+/* links use only letters, digits, - and _ : Messages cut earlier links off at the colon after BARN2 */
+const encodeLink=st=>'BARN3'+b64u(JSON.stringify(compactState(st,true)));
 const barnPrint=st=>JSON.stringify(compactState(st,false));
 /* finds a layout inside whatever was pasted: a bare code, a link, or either one wrapped in other words or broken across lines */
 function decode(txt){const raw=String(txt),first=raw.trim();
   if(first[0]==='{'){try{const o=JSON.parse(first);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}
-  const re=/BARN[12](?::|%3A)([A-Za-z0-9+\/=_-]+)/i,cands=[];
+  const re=/BARN[123](?::|%3A)?([A-Za-z0-9+\/=_-]+)/i,cands=[];
   const one=b=>{b=b.replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');while(b.length%4)b+='=';
     let o=JSON.parse(decodeURIComponent(escape(atob(b))));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(!o||typeof o!=='object'||!o.walls)throw new Error('shape');return o;};
   let m=raw.match(re);if(m)cands.push(m[1]); m=raw.replace(/\s+/g,'').match(re);if(m)cands.push(m[1]);
@@ -1019,7 +1020,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=39, VERSION_DATE='Nov 27';
+const VERSION=40, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1291,8 +1292,8 @@ function toHomeApp(o){const text=location.origin+location.pathname+'#'+encodeLin
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
 let linkInfo=null;
-function readIncoming(){let o=null;const raw=location.hash;if(!/BARN[12]/i.test(raw))return null;
-  linkInfo={len:raw.length,kind:(raw.match(/BARN[12]/i)||['?'])[0].toUpperCase(),why:'could not be decoded'};
+function readIncoming(){let o=null;const raw=location.hash;if(!/BARN[123]/i.test(raw))return null;
+  linkInfo={len:raw.length,kind:(raw.match(/BARN[123]/i)||['?'])[0].toUpperCase(),why:'could not be decoded'};
   try{o=decode(location.hash);}catch(e){try{o=decode(decodeURIComponent(location.hash));}catch(e2){}}
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}if(o)linkInfo.why='';return o||{bad:true};}
 function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
