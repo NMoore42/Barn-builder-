@@ -423,7 +423,7 @@ function emptyGroup(g){while(g.children.length){const c=g.children.pop();c.trave
 
 const groundMat=new THREE.MeshBasicMaterial({color:0xdbe2d9});
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(900,900),groundMat); ground.rotation.x=-Math.PI/2; ground.position.set(30,-0.22,24); scene.add(ground);
-let grid=null; const walk={on:false,x:0,z:0,y:0,h:0,p:-.06,hold:{},last:0,raf:0}; let look=null; const LAY={walls:true,trusses:true,items:true,loft:true,tags:true,floor:true,grid:true};
+let grid=null; const walk={on:false,x:0,z:0,y:0,h:0,p:-.06,hold:{},last:0,raf:0}; let look=null; const LAY={roof:false,walls:true,trusses:false,items:true,loft:true,tags:true,floor:true,grid:true};
 function applyTheme(){const cs=getComputedStyle(document.documentElement), v=n=>cs.getPropertyValue(n).trim()||'#888';
   renderer.setClearColor(new THREE.Color(v('--sky'))); groundMat.color.set(v('--ground'));
   if(grid){scene.remove(grid);grid.geometry.dispose();grid.material.dispose();}
@@ -691,8 +691,12 @@ function removeItemMesh(it){if(it.g){itemsG.remove(it.g);it.g.traverse(c=>{if(c.
   if(it.lab){labelsG.remove(it.lab);it.lab.material.map.dispose();it.lab.material.dispose();it.lab=null;}}
 function itemShown(it){return CAT[it.t].g==='Loft'?LAY.loft:LAY.items;}
 function applyItemLayer(it){if(!it.g)return;const v=itemShown(it);it.g.visible=v;if(it.lab)it.lab.visible=v;}
+/* turning the Roof layer on or off is the same as pressing Outside or Inside, without moving the camera */
+function syncRoof(){if(view!=='above')view=LAY.roof?'outside':'inside';roof.visible=LAY.roof&&view!=='above';
+  ['inside','outside'].forEach(k=>{const b=document.getElementById('v-'+k);if(b)b.setAttribute('aria-pressed',String(view===k));});
+  labelsG.visible=LAY.tags&&view!=='outside'&&!walk.on;updateFade();}
 function applyLayers(){tagsOn=LAY.tags;wallsG.visible=LAY.walls;items.forEach(applyItemLayer);labelsG.visible=LAY.tags&&view!=='outside'&&!walk.on;
-  zoneLabels.forEach(z=>{z.me.visible=LAY.floor;});if(grid)grid.visible=LAY.grid;trussG.visible=LAY.trusses;
+  zoneLabels.forEach(z=>{z.me.visible=LAY.floor;});if(grid)grid.visible=LAY.grid;trussG.visible=LAY.trusses;syncRoof();
   if(sel&&((sel.kind==='item'&&findItem(sel.id)&&!itemShown(findItem(sel.id)))||(sel.kind!=='item'&&!LAY.walls)))select(null);redraw();}
 function buildItem(it){removeItemMesh(it);const g=CAT[it.t].b(dims(it));g.userData.pick={kind:'item',id:it.i};it.g=g;itemsG.add(g);
   const tx=textTexture([CAT[it.t].n],'#ffffff','rgba(28,42,58,.82)'),sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx.t,depthWrite:false}));
@@ -1004,7 +1008,7 @@ $('btnWalk').onclick=()=>{const k=snapNow&&snapNow!=='top'?snapNow:null;
   if(walk.on){const back=[-Math.sin(walk.h),-Math.cos(walk.h)];endWalk();eyeLevel=false;flyTo(back);markSnap(null);return;}
   const d=k?SNAP_DIRS[k]:currentDir();if(view==='above')setViewMode('inside');startWalk(d);markSnap(k);};
 controls.addEventListener('start',()=>{snapAnim++;snapping=false;if(eyeLevel&&!controls.__panOnly)eyeLevel=false;markSnap(null);});
-function setViewMode(v){view=v;roof.visible=v==='outside';labelsG.visible=LAY.tags&&v!=='outside'&&!walk.on;topView=v==='above';
+function setViewMode(v){view=v;if(v!=='above'){LAY.roof=v==='outside';saveLayers();}roof.visible=LAY.roof&&v!=='above';labelsG.visible=LAY.tags&&v!=='outside'&&!walk.on;topView=v==='above';
   controls.enableRotate=!topView;controls.touches.ONE=topView?THREE.TOUCH.PAN:THREE.TOUCH.ROTATE;controls.mouseButtons.LEFT=topView?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE;
   ['inside','outside'].forEach(k=>$('v-'+k).setAttribute('aria-pressed',String(k===(v==='above'?'inside':v)&&v!=='above')));
   if(walk.on){updateFade();redraw();return;}
@@ -1073,7 +1077,7 @@ const menuPage=settings=>{$('menuMain').hidden=settings;$('menuSettings').hidden
 $('mToSettings').onclick=()=>{menuPage(true);$('mBack').focus();};
 $('mBack').onclick=()=>{menuPage(false);$('mToSettings').focus();};
 $('btnMore').onclick=()=>{const m=$('menu');menuPage(false);m.style.top=(document.querySelector('.bar').offsetHeight+2)+'px';m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
-const LAYER_LIST=[['walls','Walls and doors'],['trusses','Roof trusses'],['items','Vehicles and equipment'],['loft','Loft and stairs'],['tags','Name tags'],['floor','Floor labels'],['grid','Grid']];
+const LAYER_LIST=[['roof','Roof'],['trusses','Roof trusses'],['walls','Walls and doors'],['items','Vehicles and equipment'],['loft','Loft and stairs'],['tags','Name tags'],['floor','Floor labels'],['grid','Grid']];
 function saveLayers(){try{localStorage.setItem(KEY+'.layers',JSON.stringify(LAY));}catch(e){}}
 function renderLayers(){const list=$('layerList');list.textContent='';LAYER_LIST.forEach(([k,l])=>{const cb=h('input',{type:'checkbox',id:'lay-'+k});cb.checked=LAY[k];
   cb.addEventListener('change',()=>{LAY[k]=cb.checked;saveLayers();applyLayers();});list.append(h('label',{class:'lrow',for:'lay-'+k},cb,l));});}
@@ -1196,7 +1200,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Quick views: '),'the small pad in the corner turns the barn to face you from the Front, Back, Left or Right, or looks down from the Top.'),
   h('p',null,h('b',null,'Eye level and Walk: '),'Eye level shows the barn from standing height. Walk puts you on foot outside the barn: hold the arrows on the left to walk forward, back and sideways, and ↺ ↻ on the right to turn. You can also slide a finger to look around. Walls stop you, but you can walk through doors and up the loft stairs. Tap Walk again to stop.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
-  h('p',null,h('b',null,'Slice and Layers: '),'are under the quick views pad. Slice cuts the barn open from one side so you can see in. Layers hides walls, roof trusses, vehicles, the loft, name tags, floor labels or the grid. Neither one changes the barn.'),
+  h('p',null,h('b',null,'Slice and Layers: '),'are under the quick views pad. Slice cuts the barn open from one side so you can see in. Layers shows or hides the roof, roof trusses, walls, vehicles, the loft, name tags, floor labels and the grid. Neither one changes the barn.'),
   h('p',null,h('b',null,'Measure: '),'tap Measure, then tap two spots to see how far apart they are. You can tap the floor, a wall or a vehicle.'),
   h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side. To put something up there, add it while the loft is selected.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
@@ -1207,7 +1211,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=59, VERSION_DATE='Nov 27';
+const VERSION=60, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1390,7 +1394,7 @@ function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:
   renderer.setPixelRatio(1);renderer.setSize(W,H,false);cam.clearViewOffset();cam.aspect=W/H;cam.updateProjectionMatrix();
   renderer.setClearColor(new THREE.Color('#e7ece8'));groundMat.color.set('#dbe2d9');
   slice.on=false;applySlice();measureG.visible=false;if(selBox)selBox.visible=false;
-  const keepLay=Object.assign({},LAY);for(const k in LAY)LAY[k]=true;applyLayers();
+  const keepLay=Object.assign({},LAY);for(const k in LAY)if(k!=='trusses'&&k!=='roof')LAY[k]=true;applyLayers();
   const vf=cam.fov*Math.PI/180,hf=2*Math.atan(Math.tan(vf/2)*cam.aspect),T=new THREE.Vector3(30,2,24),out=[];
   const shot=(title,dir,roofOn,top)=>{roof.visible=roofOn;labelsG.visible=!roofOn;topView=!!top;
     const need=top?Math.max(35/Math.tan(hf/2),29/Math.tan(vf/2)):Math.max(41/Math.tan(hf/2),32/Math.tan(vf/2));
@@ -1464,7 +1468,7 @@ if(!window.claude){$('bpPrint').hidden=false;$('bpPrint').onclick=()=>window.pri
 /* ================= start ================= */
 let saved=null;
 try{saved=JSON.parse(localStorage.getItem(KEY)||'null');const ly=JSON.parse(localStorage.getItem(KEY+'.layers')||'null');
-  if(ly&&typeof ly==='object')for(const k in LAY){if(typeof ly[k]==='boolean')LAY[k]=ly[k];} else if(localStorage.getItem(KEY+'.tags')==='0')LAY.tags=false;}catch(e){}
+  if(ly&&typeof ly==='object'){for(const k in LAY){if(typeof ly[k]==='boolean')LAY[k]=ly[k];}if(typeof ly.roof!=='boolean'){LAY.roof=false;LAY.trusses=false;}} else if(localStorage.getItem(KEY+'.tags')==='0')LAY.tags=false;}catch(e){}
 loadProjects();
 if(!projects.length){projects=[{id:'p1',name:"Tom's barn",t:Date.now()}];curId='p1';if(!readProject('p1'))writeProject('p1',saved&&saved.walls?saved:defaultState());saveProjects();}
 if(!curProject())curId=projects[0].id;
