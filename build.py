@@ -16,6 +16,8 @@ page = f"""<!doctype html>
 <meta name="apple-mobile-web-app-title" content="Barn Builder">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f3f5f1">
 <style>
 :root{{color-scheme:light;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}}
 html{{box-sizing:border-box}}

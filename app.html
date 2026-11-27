@@ -132,6 +132,12 @@ button:disabled{opacity:.45;cursor:default}
 .shareopt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;padding:10px 14px}
 .shareopt b{font-size:18px}
 .shareopt span{color:var(--pencil);font-size:14px;font-weight:400}
+.installbar{position:absolute;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:6;
+  background:var(--panel);border:1px solid var(--marker);border-radius:10px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:8px}
+.installbar span{flex:1 1 auto;min-width:0;font-size:15px;line-height:1.3}
+.installbar .x{min-width:44px;padding:0;font-size:20px}
+.installbar button{white-space:nowrap;flex:0 0 auto}
+.shareicon{display:inline-block;vertical-align:-4px;width:20px;height:20px;color:var(--marker)}
 .steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;line-height:1.4}
 @media (min-width:641px){ .phone-only{display:none!important} }
 @media (max-width:640px){
@@ -212,6 +218,7 @@ button:disabled{opacity:.45;cursor:default}
     <button id="mBlueprint" class="phone-only">Blueprint</button>
     <button id="mSlice" class="phone-only">Slice</button>
     <button id="mMeasure" class="phone-only">Measure</button>
+    <button id="mInstall" class="primary" hidden>Add to Home Screen</button>
     <button id="mHelp">Help</button>
     <button id="mLabels" aria-pressed="true">Name tags</button>
     <button id="mCopy">Save to a file</button>
@@ -959,7 +966,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=31, VERSION_DATE='Nov 27';
+const VERSION=32, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1193,9 +1200,31 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{drawZoneL
 let seenHelp=false; try{seenHelp=!!localStorage.getItem(KEY+'.seen');localStorage.setItem(KEY+'.seen','1');}catch(e){}
 let incoming=null;
 const inHomeApp=navigator.standalone===true||matchMedia('(display-mode: standalone)').matches, touchDevice=matchMedia('(pointer:coarse)').matches;
+/* installing: Android Chrome hands us a real prompt; iPhone and iPad only allow showing the steps */
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+let installEvt=null;
+const canInstall=()=>canLink&&!inHomeApp&&(!!installEvt||isIOS);
+function updateInstall(){$('mInstall').hidden=!canInstall();const bar=$('installBar');if(bar&&!canInstall())bar.remove();}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;updateInstall();maybeInstallBar();});
+window.addEventListener('appinstalled',()=>{installEvt=null;updateInstall();toast('Added. Open Barn Builder from your Home Screen.');});
+const SHARE_SVG='<svg class="shareicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+function installApp(){closeMenu();const bar=$('installBar');if(bar)bar.remove();
+  if(installEvt){const ev=installEvt;ev.prompt();(ev.userChoice||Promise.resolve()).then(()=>{installEvt=null;updateInstall();},()=>{});return;}
+  const share=h('span');share.innerHTML=SHARE_SVG;
+  dialog('Add Barn Builder to your Home Screen',h('p',null,'Then it opens like an app, full screen, from its own barn icon.'),
+    h('ol',{class:'steps'},h('li',null,'Tap the Share button ',share,' in Safari. If you don’t see it, tap the ••• button first.'),
+      h('li',null,'Scroll down and tap Add to Home Screen.'),h('li',null,'Tap Add.')),
+    h('p',{class:'dims'},'Barns made here in Safari may not show up in the Home Screen app. To bring one along, use Save to a file, then Open a barn in the app.'),
+    h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK')));}
+$('mInstall').onclick=installApp;
+function maybeInstallBar(){if(!canInstall()||!touchDevice||$('installBar'))return;let seen=false;try{seen=!!localStorage.getItem(KEY+'.installHint');}catch(e){}if(seen)return;
+  const hide=()=>{try{localStorage.setItem(KEY+'.installHint','1');}catch(e){}const b=$('installBar');if(b)b.remove();};
+  const bar=h('div',{class:'installbar',id:'installBar',role:'region','aria-label':'Add to Home Screen'},h('span',null,'Use Barn Builder like an app on this '+(isIOS&&/iPad|Macintosh/.test(navigator.userAgent)?'iPad':'phone')+'.'),
+    h('button',{class:'primary',onclick:()=>{hide();installApp();}},'Add it'),h('button',{class:'x','aria-label':'No thanks',onclick:hide},'\u00D7'));
+  bar.style.top=(document.querySelector('.bar').offsetHeight+6)+'px';app.append(bar);}
 function toHomeApp(o){const text=location.origin+location.pathname+'#'+encode(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
   const steps=h('ol',{class:'steps'},h('li',null,'Go to your Home Screen and open Barn Builder.'),h('li',null,'Tap Menu (Settings on an iPad), then Open a barn.'),h('li',null,'Tap Paste and open.'));
-  dialog('Open it in your Home Screen app',h('p',null,'Links always open here in the browser, so the barn needs to be pasted into the app.'),note,steps,ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK')));
+  dialog('Open it in your Home Screen app',h('p',null,'Links always open here in the browser, so the barn needs to be pasted into the app.'),note,steps,ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK'),canInstall()?h('button',{onclick:installApp},'I don’t have the app yet'):null));
   ta.hidden=true;
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
@@ -1206,6 +1235,7 @@ if(incoming){const nm=cleanName(incoming.name);
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{if(loadShared(incoming)){closeDialog();toast('Opened as a new project called '+curProject().name+'.');}else toast('That layout could not be opened.');}},'Open it here'),
       (!inHomeApp&&touchDevice)?h('button',{onclick:()=>toHomeApp(incoming)},'Open it in my Home Screen app'):null,h('button',{onclick:closeDialog},'No thanks')));}
 else if(!saved&&!seenHelp)help();
+updateInstall(); maybeInstallBar();
 window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews};
 })();
 </script>
