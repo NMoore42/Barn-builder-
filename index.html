@@ -998,7 +998,9 @@ function loadShared(o,copy){const before=JSON.stringify(getState());try{applySta
   const want=cleanName(o.name)||'Shared barn',name=uniqueName(projects.some(q=>q.name===want)?want+' (shared)':want);
   newProject(name,good);return 'Opened “'+name+'”. Your own barns are under the Project button.';}
 const canLink=!window.claude&&/^https?:$/.test(location.protocol);
-function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encodeLink(st);return canLink?location.origin+location.pathname+'#'+code:code;}
+/* the barn goes in ?b= rather than after #: Messages on iPhone dropped or cut the # part of earlier links */
+const linkFor=st=>location.origin+location.pathname+'?b='+encodeLink(st);
+function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encodeLink(st);return canLink?linkFor(st):code;}
 function copyText(text,ta,note){const fail=()=>{ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='It could not be copied for you. The text below is selected: tap it and choose Copy.';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>{note.textContent='Copied. Paste it into a message, an email or Notes.';},fail);else fail();}
 function barnFile(){const st=getState();st.name=(curProject()||{}).name||'Barn';st.app="Tom's Barn Builder";
@@ -1040,7 +1042,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=40, VERSION_DATE='Nov 27';
+const VERSION=41, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1305,17 +1307,17 @@ function maybeInstallBar(){if(!canInstall()||!touchDevice||$('installBar'))retur
   const bar=h('div',{class:'installbar',id:'installBar',role:'region','aria-label':'Add to Home Screen'},h('span',null,'Use Barn Builder like an app on this '+(isIOS&&/iPad|Macintosh/.test(navigator.userAgent)?'iPad':'phone')+'.'),
     h('button',{class:'primary',onclick:()=>{hide();installApp();}},'Add it'),h('button',{class:'x','aria-label':'No thanks',onclick:hide},'\u00D7'));
   bar.style.top=(document.querySelector('.bar').offsetHeight+6)+'px';app.append(bar);}
-function toHomeApp(o){const text=location.origin+location.pathname+'#'+encodeLink(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
+function toHomeApp(o){const text=linkFor(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
   const steps=h('ol',{class:'steps'},h('li',null,'Go to your Home Screen and open Barn Builder.'),h('li',null,'Tap Menu, then Open a barn.'),h('li',null,'Tap Paste and open.'));
   dialog('Open it in your Home Screen app',h('p',null,'Links always open here in the browser, so the barn needs to be pasted into the app.'),note,steps,ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK'),canInstall()?h('button',{onclick:installApp},'I don’t have the app yet'):null));
   ta.hidden=true;
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
 let linkInfo=null;
-function readIncoming(){let o=null;const raw=location.hash;if(!/BARN[123]/i.test(raw))return null;
+function readIncoming(){let o=null;const raw=location.search+location.hash;if(!/BARN[123]/i.test(raw))return null;
   linkInfo={len:raw.length,kind:(raw.match(/BARN[123]/i)||['?'])[0].toUpperCase(),why:'could not be decoded'};
-  try{o=decode(location.hash);}catch(e){try{o=decode(decodeURIComponent(location.hash));}catch(e2){}}
-  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}if(o)linkInfo.why='';return o||{bad:true};}
+  try{o=decode(raw);}catch(e){try{o=decode(decodeURIComponent(raw));}catch(e2){}}
+  try{history.replaceState(null,'',location.pathname);}catch(e){}if(o)linkInfo.why='';return o||{bad:true};}
 function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
   const key=o.bad?null:sharedKey(o);
   if(key==null){dialog('That link could not be opened',h('p',null,'The barn in it could not be read. It may have been cut off when it was sent. Ask for it to be sent again, or as a file.'),

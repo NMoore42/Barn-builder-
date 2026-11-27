@@ -32,4 +32,4 @@ LIBS=/path/to/three-and-jspdf node tests/link-roundtrip.js
 
 `LIBS` is a folder holding `three.min.js` (r128), `OrbitControls.js` and `jspdf.umd.min.js` (2.5.1), since the test runs offline. Needs Playwright.
 
-Short links leave out anything equal to `LINK2_BASE` in `app.html`. Never change `LINK2_BASE`; old links depend on it. Links must use only letters, digits, `-` and `_` after the `#`: Messages on iPhone cut earlier links off at a colon.
+Short links leave out anything equal to `LINK2_BASE` in `app.html`. Never change `LINK2_BASE`; old links depend on it. Share links carry the barn in `?b=` (letters, digits, `-` and `_` only). Earlier links put it after `#`, and Messages on iPhone cut or dropped that part. Both forms are still read.
