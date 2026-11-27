@@ -110,6 +110,14 @@ button:disabled{opacity:.45;cursor:default}
 .menu{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100% - 32px));z-index:5}
 .menu button{text-align:left}
+.mpage{display:flex;flex-direction:column;gap:6px}
+.mhead{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--pencil);padding:8px 6px 0}
+.mpage > .mhead:first-child,.mpage > button[hidden] + .mhead{padding-top:2px}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.mgrid button{text-align:center;padding:8px 4px}
+.mnext{display:flex;justify-content:space-between;align-items:center}
+.mnext span[aria-hidden]{font-size:22px;line-height:1;color:var(--pencil)}
+.mback{align-self:flex-start;border:0;background:transparent;color:var(--marker);font-weight:600;padding-left:6px}
 .menu{max-height:calc(100% - 90px);overflow-y:auto}
 .about{border-top:1px solid var(--line);margin-top:4px;padding:12px 4px 4px;display:flex;flex-direction:column;gap:10px}
 .about .name{font-size:20px}
@@ -230,23 +238,31 @@ button:disabled{opacity:.45;cursor:default}
       <button id="btnSlice" class="wide-only" aria-pressed="false">Slice</button>
       <button id="btnMeasure" class="wide-only" aria-pressed="false">Measure</button>
       <button id="btnBlueprint" class="wide-only">Blueprint</button>
-      <button id="btnMore" aria-expanded="false"><span class="wide-only">Settings</span><span class="phone-only">Menu</span></button>
+      <button id="btnMore" aria-expanded="false">Menu</button>
     </div>
   </header>
 
   <div class="menu" id="menu" hidden>
-    <button id="mBlueprint" class="phone-only">Blueprint</button>
-    <button id="mSlice" class="phone-only">Slice</button>
-    <button id="mMeasure" class="phone-only">Measure</button>
-    <button id="mInstall" class="primary" hidden>Add to Home Screen</button>
-    <button id="mHelp">Help</button>
-    <button id="mLabels" aria-pressed="true">Name tags</button>
-    <button id="mCopy">Save to a file</button>
-    <button id="mPaste">Open a barn</button>
-    <button id="mPdf">Share</button>
-    <button id="mRefresh">Refresh</button>
-    <button id="mReset" class="danger">Start over</button>
-    <div class="about" id="mVersion"></div>
+    <div class="mpage" id="menuMain">
+      <button id="mInstall" class="primary" hidden>Add to Home Screen</button>
+      <div class="mhead phone-only">Tools</div>
+      <div class="mgrid phone-only"><button id="mBlueprint">Blueprint</button><button id="mSlice">Slice</button><button id="mMeasure">Measure</button></div>
+      <div class="mhead">Share and save</div>
+      <button id="mPdf">Share</button>
+      <button id="mCopy">Save to a file</button>
+      <button id="mPaste">Open a barn</button>
+      <div class="mhead">More</div>
+      <button id="mHelp">Help</button>
+      <button id="mToSettings" class="mnext"><span>Settings</span><span aria-hidden="true">›</span></button>
+    </div>
+    <div class="mpage" id="menuSettings" hidden>
+      <button id="mBack" class="mback">‹ Back</button>
+      <div class="mhead">Settings</div>
+      <button id="mLabels" aria-pressed="true">Name tags</button>
+      <button id="mRefresh">Refresh</button>
+      <button id="mReset" class="danger">Start over</button>
+      <div class="about" id="mVersion"></div>
+    </div>
   </div>
 
   <div class="slice" id="slicePanel" hidden>
@@ -924,7 +940,10 @@ $('measureClear').onclick=()=>{measure.a=measure.b=null;drawMeasure();};
 /* ================= menu, dialogs ================= */
 $('btnUndo').onclick=()=>{const s=undo.pop();if(!s)return;$('btnUndo').disabled=!undo.length;applyState(JSON.parse(s));save();};
 function closeMenu(){$('menu').hidden=true;$('btnMore').setAttribute('aria-expanded','false');}
-$('btnMore').onclick=()=>{const m=$('menu');m.style.top=(document.querySelector('.bar').offsetHeight+2)+'px';m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
+const menuPage=settings=>{$('menuMain').hidden=settings;$('menuSettings').hidden=!settings;$('menu').scrollTop=0;};
+$('mToSettings').onclick=()=>{menuPage(true);$('mBack').focus();};
+$('mBack').onclick=()=>{menuPage(false);$('mToSettings').focus();};
+$('btnMore').onclick=()=>{const m=$('menu');menuPage(false);m.style.top=(document.querySelector('.bar').offsetHeight+2)+'px';m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
 $('mLabels').onclick=()=>{tagsOn=!tagsOn;labelsG.visible=tagsOn&&view!=='outside';$('mLabels').setAttribute('aria-pressed',String(tagsOn));try{localStorage.setItem(KEY+'.tags',tagsOn?'1':'0');}catch(e){}redraw();};
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true;},Math.max(3200,msg.length*70));}
 function dialog(title,...body){const s=$('sheet');s.textContent='';s.append(h('h2',null,title),...body);$('modal').hidden=false;}
@@ -987,11 +1006,11 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
   h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print. Share sends pictures of the barn in 3D, the blueprint, or a link that opens the barn on another phone.'),
   h('p',null,h('b',null,'Hide: '),'the Hide button at the end of the bottom row tucks the menu away so you can see more of the barn. Show the menu brings it back.'),
-  h('p',null,h('b',null,'Settings: '),'has this help, name tags, saving a barn to a file or opening one, and Refresh, which loads the newest version of the app. Refreshing keeps your projects.'),
+  h('p',null,h('b',null,'Menu: '),'has Share, Save to a file, Open a barn and this help. Its Settings page has name tags, Start over and Refresh, which loads the newest version of the app. Refreshing keeps your projects.'),
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=33, VERSION_DATE='Nov 27';
+const VERSION=34, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1248,7 +1267,7 @@ function maybeInstallBar(){if(!canInstall()||!touchDevice||$('installBar'))retur
     h('button',{class:'primary',onclick:()=>{hide();installApp();}},'Add it'),h('button',{class:'x','aria-label':'No thanks',onclick:hide},'\u00D7'));
   bar.style.top=(document.querySelector('.bar').offsetHeight+6)+'px';app.append(bar);}
 function toHomeApp(o){const text=location.origin+location.pathname+'#'+encode(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
-  const steps=h('ol',{class:'steps'},h('li',null,'Go to your Home Screen and open Barn Builder.'),h('li',null,'Tap Menu (Settings on an iPad), then Open a barn.'),h('li',null,'Tap Paste and open.'));
+  const steps=h('ol',{class:'steps'},h('li',null,'Go to your Home Screen and open Barn Builder.'),h('li',null,'Tap Menu, then Open a barn.'),h('li',null,'Tap Paste and open.'));
   dialog('Open it in your Home Screen app',h('p',null,'Links always open here in the browser, so the barn needs to be pasted into the app.'),note,steps,ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK'),canInstall()?h('button',{onclick:installApp},'I don’t have the app yet'):null));
   ta.hidden=true;
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
