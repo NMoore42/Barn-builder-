@@ -160,13 +160,13 @@ button:disabled{opacity:.45;cursor:default}
   </header>
 
   <div class="menu" id="menu" hidden>
-    <button id="mHelp">How to use this</button>
-    <button id="mLabels" aria-pressed="true">Name tags on items</button>
-    <button id="mCopy">Save or share this barn</button>
-    <button id="mPaste">Open a saved or shared barn</button>
-    <button id="mPdf">Share pictures and blueprint as PDFs</button>
-    <button id="mRefresh">Refresh to get the latest version</button>
-    <button id="mReset" class="danger">Start over from the sketch</button>
+    <button id="mHelp">Help</button>
+    <button id="mLabels" aria-pressed="true">Name tags</button>
+    <button id="mCopy">Save or share</button>
+    <button id="mPaste">Open a barn</button>
+    <button id="mPdf">Share PDFs</button>
+    <button id="mRefresh">Refresh</button>
+    <button id="mReset" class="danger">Start over</button>
     <div class="about" id="mVersion"></div>
   </div>
 
@@ -870,7 +870,7 @@ function copyText(text,ta,note){const fail=()=>{ta.focus();try{ta.setSelectionRa
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>{note.textContent='Copied. Paste it into a message, an email or Notes.';},fail);else fail();}
 function barnFile(){const st=getState();st.name=(curProject()||{}).name||'Barn';st.app="Tom's Barn Builder";
   return {name:((st.name.replace(/[^A-Za-z0-9 _-]+/g,'').trim()||'Barn').replace(/\s+/g,'-'))+'.barn.txt',text:JSON.stringify(st)};}
-function saveBarnFile(note){const f=barnFile(),done=()=>{note.textContent='Saved as '+f.name+'. Open it later with Open a saved or shared barn.';},no=NO_FILE;
+function saveBarnFile(note){const f=barnFile(),done=()=>{note.textContent='Saved as '+f.name+'. Open it later with Open a barn.';},no=NO_FILE;
   if(dlPromise){dlPromise.then(dl=>{if(!dl){note.textContent=no;return;}dl.save({filename:f.name,data:f.text}).then(done,e=>{note.textContent=e&&e.code==='declined'?'Not saved.':no;});});return;}
   let file=null;try{file=new File([f.text],f.name,{type:'text/plain'});}catch(e){}
   if(file&&navigator.share&&navigator.canShare&&matchMedia('(pointer:coarse)').matches&&navigator.canShare({files:[file]})){
@@ -890,7 +890,7 @@ $('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placehol
     if(!loadShared(o)){err.textContent='That barn could not be opened.';return;}closeDialog();toast('Opened as a new project called '+curProject().name+'.');};
   const pick=h('input',{type:'file',id:'barnFileIn','aria-label':'Choose a barn file'});
   pick.addEventListener('change',()=>{const f=pick.files&&pick.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>open(String(rd.result||''));rd.onerror=()=>{err.textContent='That file could not be read.';};rd.readAsText(f);});
-  dialog('Open a saved or shared barn',h('p',null,'Choose a file you saved from this app. It opens as a new project, and your other projects stay as they are.'),pick,ta,err,
+  dialog('Open a barn',h('p',null,'Choose a file you saved from this app. It opens as a new project, and your other projects stay as they are.'),pick,ta,err,
     h('div',{class:'row'},(navigator.clipboard&&navigator.clipboard.readText)?h('button',{onclick:()=>{navigator.clipboard.readText().then(t=>{ta.value=t;open(t);},()=>{err.textContent='The clipboard could not be read. Tap in the box and choose Paste.';});}},'Paste and open'):null,
       h('button',{class:'primary',onclick:()=>open(ta.value)},'Open what I pasted'),h('button',{onclick:closeDialog},'Cancel')));};
 $('mReset').onclick=()=>{closeMenu();dialog('Start over from the sketch?',h('p',null,'This puts the building back to the original sketch and brings back the example items. Undo will reverse it.'),
@@ -911,7 +911,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=28, VERSION_DATE='Nov 27';
+const VERSION=29, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
