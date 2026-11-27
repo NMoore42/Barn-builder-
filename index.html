@@ -405,6 +405,52 @@ function updateFade(){for(const id in walls){const w=walls[id],d=w.def,mx=(d.a[0
       m.transparent=f||glass; m.opacity=f?(k==='wall'||k==='post'?.13:.3):(glass?.45:1); m.depthWrite=!f; m.needsUpdate=true;}}}
 
 /* ================= things to place ================= */
+/* shaped vehicles: a side profile (x = 0 at the back to 1 at the front, y = fraction of height) pushed across the width */
+const GLASS=0x1f2b38, DARK=0x15171a;
+function prof(g,pts,L,H,W,col){const s=new THREE.Shape();pts.forEach((q,i)=>{const x=(q[0]-.5)*L,y=q[1]*H;if(i)s.lineTo(x,y);else s.moveTo(x,y);});s.closePath();
+  const geo=new THREE.ExtrudeGeometry(s,{depth:W,bevelEnabled:false});geo.translate(0,0,-W/2);const me=new THREE.Mesh(geo,mat(col));g.add(me);return me;}
+function tire(g,r,t,x,z){wheel(g,r,t,x,z);const hub=new THREE.Mesh(new THREE.CylinderGeometry(r*.55,r*.55,t+.08,14).rotateX(Math.PI/2),mat(0xb9bec4));hub.position.set(x,r,z);g.add(hub);}
+function arch(g,r,x,W){const a=new THREE.Mesh(new THREE.CylinderGeometry(r*1.2,r*1.2,W+.02,20).rotateX(Math.PI/2),mat(DARK));a.position.set(x,r,0);g.add(a);}
+function auto(d,col,o){const g=new THREE.Group(),L=d.L,H=d.H,W=d.W,X=f=>(f-.5)*L,ry=Math.max(...o.glass.map(q=>q[1]));
+  o.axles.forEach(f=>arch(g,o.r,X(f),W));
+  prof(g,o.body,L,H,W,col); prof(g,o.glass,L,H,W*.9,GLASS);
+  box(g,(o.roof[1]-o.roof[0])*L,H*(1-ry),W*.92,X((o.roof[0]+o.roof[1])/2),ry*H,0,col);
+  o.pillars.forEach(f=>box(g,.28,H*(ry-o.belt)+.02,W*.915,X(f),o.belt*H,0,col));
+  if(o.bed)box(g,(o.bed[1]-o.bed[0])*L,.06,W*.84,X((o.bed[0]+o.bed[1])/2),o.belt*H-.02,0,DARK);
+  o.axles.forEach(f=>[-1,1].forEach(sd=>tire(g,o.r,.7,X(f),sd*(W/2-.32))));
+  [-1,1].forEach(sd=>{box(g,.1,H*.08,W*.2,L/2,H*o.lamp,sd*W*.36,0xf3f0d8);box(g,.1,H*.1,W*.1,-L/2,H*o.lamp,sd*W*.42,0xb3261e);});
+  box(g,.08,H*.13,W*.46,L/2,H*(o.lamp-.03),0,DARK);
+  [-1,1].forEach(sd=>box(g,.3,H*.07,W*1.01,sd*(L/2-.1),H*o.clear,0,0x2b2f34));
+  return g;}
+function utv(d,col,rows,bed){const g=new THREE.Group(),L=d.L,H=d.H,W=d.W,r=1.05,X=f=>(f-.5)*L,dk=0x23262b,c0=bed+.02,c1=.8;
+  [.13,.85].forEach(f=>arch(g,r,X(f),W));
+  prof(g,[[0,.2],[0,.44],[bed,.44],[bed,.34],[c1,.34],[.86,.47],[.98,.42],[1,.32],[1,.2]],L,H,W,col);
+  box(g,(bed-.03)*L,.06,W*.86,X(bed/2),.44*H-.02,0,DARK);
+  for(let i=0;i<rows;i++){const x=X(c0+(i+.35)*(c1-c0)/rows);box(g,L*.07,H*.07,W*.82,x,.34*H,0,dk);box(g,.25,H*.2,W*.82,x-L*.035,.41*H,0,dk);}
+  for(let i=0;i<=rows;i++)[-1,1].forEach(sd=>box(g,.14,H*.66-.1,.14,X(c0+i*(c1-c0)/rows),.34*H,sd*(W/2-.1),dk));
+  box(g,(c1-c0)*L+.2,.12,W*.98,X((c0+c1)/2),H-.12,0,dk);
+  [.13,.85].forEach(f=>[-1,1].forEach(sd=>tire(g,r,.75,X(f),sd*(W/2-.345))));
+  [-1,1].forEach(sd=>box(g,.1,H*.06,W*.16,L/2,H*.34,sd*W*.32,0xf3f0d8));
+  return g;}
+function golfcart(d){const g=new THREE.Group(),L=d.L,H=d.H,W=d.W,X=f=>(f-.5)*L,body=0xe9e4d2,dk=0x3d444d;
+  prof(g,[[0,.12],[0,.3],[.34,.3],[.34,.2],[.74,.2],[.8,.42],[.96,.36],[1,.2],[1,.12]],L,H,W,body);
+  box(g,L*.18,H*.07,W*.9,X(.26),.3*H,0,dk);box(g,.2,H*.22,W*.9,X(.165),.37*H,0,dk);
+  [[.1,1],[.1,-1],[.78,1],[.78,-1]].forEach(([f,sd])=>box(g,.1,H*.68,.1,X(f),.3*H,sd*(W/2-.08),dk));
+  box(g,L*.74,.14,W,X(.45),H-.14,0,body);
+  [.14,.84].forEach(f=>[-1,1].forEach(sd=>tire(g,.75,.55,X(f),sd*(W/2-.255))));return g;}
+function kubota(d,col,bw){const g=new THREE.Group(),L=d.L,H=d.H,dk=0x23262b,tl=L*.68,X=f=>-L/2+f*tl,rr=H*.27,fr=H*.15;
+  box(g,tl*.42,H*.2,bw*.5,X(.72),H*.33,0,col); box(g,tl*.55,H*.12,bw*.45,X(.45),H*.2,0,dk); box(g,.3,H*.25,bw*.48,X(.94),H*.29,0,dk);
+  [-1,1].forEach(sd=>box(g,rr*1.7,.15,bw*.3,X(.2),rr*2+.05,sd*(bw/2-bw*.15),col));
+  box(g,tl*.14,H*.08,bw*.36,X(.25),H*.36,0,dk); box(g,.2,H*.16,bw*.36,X(.16),H*.42,0,dk);
+  [-1,1].forEach(sd=>box(g,.18,H*.7,.18,X(.08),H*.3,sd*bw*.32,dk)); box(g,.18,.18,bw*.64+.18,X(.08),H-.18,0,dk);
+  box(g,.12,H*.16,.12,X(.48),H*.5,0,dk); const sw=new THREE.Mesh(new THREE.TorusGeometry(.5,.07,6,14).rotateY(Math.PI/2),mat(dk));sw.position.set(X(.47),H*.67,0);sw.rotation.z=-.5;g.add(sw);
+  [-1,1].forEach(sd=>{tire(g,rr,bw*.26,X(.2),sd*(bw/2-bw*.13));tire(g,fr,bw*.17,X(.82),sd*(bw/2-bw*.1));});
+  const ax=X(.5),ay=H*.52,bx=L/2-1.4,by=.9,len=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax);
+  [-1,1].forEach(sd=>{const m=new THREE.Mesh(new THREE.BoxGeometry(len,.3,.25),mat(col));m.position.set((ax+bx)/2,(ay+by)/2,sd*(bw/2+.2));m.rotation.z=ang;g.add(m);box(g,.25,H*.3,.25,ax,H*.24,sd*(bw/2+.2),col);});
+  const sc=new THREE.Shape();[[0,0],[1.5,0],[1.5,.15],[.25,.2],[.1,1.5],[0,1.5]].forEach((q,i)=>{if(i)sc.lineTo(q[0],q[1]);else sc.moveTo(q[0],q[1]);});sc.closePath();
+  const geo=new THREE.ExtrudeGeometry(sc,{depth:d.W,bevelEnabled:false});geo.translate(L/2-1.5,.05,-d.W/2);g.add(new THREE.Mesh(geo,mat(dk)));
+  [-1,1].forEach(sd=>box(g,1.4,.8,.08,L/2-.8,.05,sd*(d.W/2-.04),dk));
+  return g;}
 function vehicle(d,col,cab,r){const g=new THREE.Group(),cl=r*.8,bh=(d.H-cl)*.52;
   box(g,d.L,bh,d.W,0,cl,0,col); if(cab)box(g,(cab[1]-cab[0])*d.L,d.H-cl-bh,d.W*.9,((cab[0]+cab[1])/2-.5)*d.L,cl+bh,0,0x2c3642);
   wheels(g,r,.7,[d.L*.31,-d.L*.31],d.W);return g;}
@@ -417,8 +463,8 @@ function tractor(d,col,loader,bodyW){const g=new THREE.Group(),bw=bodyW||d.W,bl=
 function trailerBase(g,d,deckY,r){box(g,d.L*.16,.25,.35,d.L*.42,deckY-.3,0,0x555b63);wheels(g,r,.6,[-d.L*.15],d.W);}
 function boat(d){const g=new THREE.Group();trailerBase(g,d,1.5,1.1);box(g,d.L*.8,.25,d.W*.45,-d.L*.06,1.1,0,0x555b63);
   const s=new THREE.Shape(),L=d.L,W=d.W*.92;s.moveTo(-.48*L,-W/2);s.lineTo(.12*L,-W/2);s.lineTo(.36*L,0);s.lineTo(.12*L,W/2);s.lineTo(-.48*L,W/2);s.closePath();
-  const hh=d.H*.42,geo=new THREE.ExtrudeGeometry(s,{depth:hh,bevelEnabled:false});geo.rotateX(Math.PI/2);geo.translate(0,1.5+hh,0);g.add(new THREE.Mesh(geo,mat(0xe9ecef)));
-  box(g,L*.12,d.H*.2,W*.6,-.05*L,1.5+hh,0,0x2c3642);box(g,1.2,2.4,1.2,-.48*L-.4,1.6,0,0x23262b);return g;}
+  const hh=d.H*.42,geo=new THREE.ExtrudeGeometry(s,{depth:hh,bevelEnabled:false});geo.rotateX(Math.PI/2);geo.translate(0,1.5+hh,0);g.add(new THREE.Mesh(geo,mat(0x6f7d63)));
+  [-.3,-.05,.14].forEach(f=>box(g,1,.2,W*.86,f*L,1.5+hh-.25,0,0xb9bec4));box(g,L*.07,d.H*.16,W*.3,-.12*L,1.5+hh,W*.2,0x2c3642);box(g,1.2,2.4,1.2,-.48*L-.4,1.6,0,0x23262b);return g;}
 function pontoon(d){const g=new THREE.Group();trailerBase(g,d,1.6,1.1);
   [-1,1].forEach(sd=>{const geo=new THREE.CylinderGeometry(1,1,d.L*.84,14);geo.rotateZ(Math.PI/2);const me=new THREE.Mesh(geo,mat(0xb9bec4));me.position.set(-d.L*.06,2.4,sd*(d.W/2-1.1));g.add(me);});
   box(g,d.L*.84,.3,d.W,-d.L*.06,3.4,0,0x8c8f93);box(g,d.L*.78,2.3,d.W*.94,-d.L*.06,3.7,0,0xe9ecef);box(g,d.L*.36,.15,d.W,-d.L*.18,d.H-.15,0,0x2a4b7c);return g;}
@@ -428,16 +474,15 @@ function legs(g,d,hh,col,t){[-1,1].forEach(a=>[-1,1].forEach(b=>box(g,t,hh,t,a*(
 const JOIST=.9;
 /* hang = how far below the main wall top the item hangs; dyn = shape depends on the wall height */
 const CAT={
-  car:{n:'Chevy Equinox',g:'Vehicles',L:15.25,W:6.05,H:5.45,b:d=>vehicle(d,0x39618c,[.1,.74],1.15)},
-  suv:{n:'SUV',g:'Vehicles',L:16.5,W:6.5,H:5.9,b:d=>vehicle(d,0x54606b,[.1,.72],1.2)},
-  pickup:{n:'Ford F-250 crew cab',g:'Vehicles',L:20.83,W:6.67,H:6.75,b:d=>vehicle(d,0x8a2f26,[.33,.74],1.4)},
-  tractor:{n:'Kubota B7500 with loader',g:'Vehicles',L:12.5,W:6,H:7.25,b:d=>tractor(d,0xe8601c,true,3.9)},
+  car:{n:'Chevy Equinox',g:'Vehicles',L:15.25,W:6.05,H:5.45,b:d=>auto(d,0x4a6a8a,{r:1.15,clear:.15,belt:.59,lamp:.36,body:[[0,.16],[0,.5],[.02,.6],[.8,.58],[.97,.47],[1,.42],[1,.16]],glass:[[.03,.6],[.1,.93],[.6,.93],[.8,.58]],roof:[.095,.605],pillars:[.33,.52],axles:[.17,.8]})},
+  suv:{n:'SUV',g:'Vehicles',L:16.5,W:6.5,H:5.9,b:d=>auto(d,0x54606b,{r:1.25,clear:.16,belt:.59,lamp:.38,body:[[0,.17],[0,.52],[.015,.6],[.78,.58],[.97,.5],[1,.44],[1,.17]],glass:[[.02,.6],[.06,.93],[.62,.93],[.78,.58]],roof:[.055,.625],pillars:[.3,.5],axles:[.17,.8]})},
+  pickup:{n:'Ford F-250 crew cab',g:'Vehicles',L:20.83,W:6.67,H:6.75,b:d=>auto(d,0x8a2f26,{r:1.4,clear:.2,belt:.6,lamp:.44,bed:[.015,.325],body:[[0,.21],[0,.6],[.74,.6],[.76,.62],[.985,.585],[1,.52],[1,.21]],glass:[[.335,.6],[.355,.94],[.665,.94],[.76,.61]],roof:[.35,.67],pillars:[.52],axles:[.18,.8]})},
+  tractor:{n:'Kubota B7500 with loader',g:'Vehicles',L:12.5,W:6,H:7.25,b:d=>kubota(d,0xe8601c,3.9)},
   bigtractor:{n:'Farm tractor',g:'Vehicles',L:15,W:7.5,H:9.5,b:d=>tractor(d,0xb8321f,false)},
   mower:{n:'Zero-turn mower',g:'Vehicles',L:6.5,W:5,H:4.5,b:d=>{const g=new THREE.Group();box(g,d.L*.5,.6,d.W,d.L*.2,.3,0,0xd9a514);box(g,d.L*.5,1.6,d.W*.6,-d.L*.2,.9,0,0x33373d);box(g,1.6,1.8,1.8,-d.L*.1,2.5,0,0x23262b);wheels(g,.9,.7,[-d.L*.25],d.W);return g;}},
-  utv:{n:'Yamaha Viking, 6 seat',g:'Vehicles',L:12.8,W:5.15,H:6.4,b:d=>{const g=vehicle(d,0x1f4e9a,null,1.1);box(g,d.L*.6,d.H*.4,d.W*.9,-d.L*.04,d.H*.5,0,mat(0x2c3642,{transparent:true,opacity:.55}));box(g,d.L*.62,.15,d.W*.92,-d.L*.04,d.H-.15,0,0x23262b);return g;}},
-  mule:{n:'Kawasaki Mule',g:'Vehicles',L:9.85,W:5.1,H:6.3,b:d=>{const g=vehicle(d,0x2e6b3a,null,1.05);box(g,d.L*.34,d.H*.4,d.W*.9,d.L*.06,d.H*.5,0,mat(0x2c3642,{transparent:true,opacity:.55}));box(g,d.L*.36,.15,d.W*.92,d.L*.06,d.H-.15,0,0x23262b);box(g,d.L*.33,d.H*.16,d.W*.94,-d.L*.31,d.H*.5,0,0x33373d);return g;}},
-  golfcart:{n:'Club Car golf cart',g:'Vehicles',L:7.9,W:3.95,H:5.7,b:d=>{const g=new THREE.Group();box(g,d.L,d.H*.24,d.W,0,.55,0,0xe9e4d2);box(g,d.L*.28,d.H*.2,d.W*.9,-d.L*.12,.55+d.H*.24,0,0x3d444d);
-    box(g,d.L*.78,.15,d.W,-d.L*.03,d.H-.15,0,0xe9e4d2);[[.3,1],[.3,-1],[-.36,1],[-.36,-1]].forEach(([a,b])=>box(g,.12,d.H-.7-d.H*.24,.12,a*d.L,.55+d.H*.24,b*(d.W/2-.1),0x3d444d));wheels(g,.75,.6,[d.L*.32,-d.L*.32],d.W);return g;}},
+  utv:{n:'Yamaha Viking, 6 seat',g:'Vehicles',L:12.8,W:5.15,H:6.4,b:d=>utv(d,0x1f4e9a,2,.2)},
+  mule:{n:'Kawasaki Mule',g:'Vehicles',L:9.85,W:5.1,H:6.3,b:d=>utv(d,0x2e6b3a,1,.36)},
+  golfcart:{n:'Club Car golf cart',g:'Vehicles',L:7.9,W:3.95,H:5.7,b:golfcart},
   atv:{n:'Four-wheeler',g:'Vehicles',L:7,W:4,H:4,b:d=>vehicle(d,0xa02a2a,[.3,.6],.95)},
   moto:{n:'Motorcycle',g:'Vehicles',L:7,W:2.8,H:4,b:d=>{const g=new THREE.Group();wheel(g,1,.4,d.L*.36,0);wheel(g,1,.4,-d.L*.36,0);box(g,d.L*.55,1.4,1,0,1.5,0,0x23262b);box(g,.3,1.2,d.W,d.L*.25,2.8,0,0x8c8f93);return g;}},
   sled:{n:'Snowmobile',g:'Vehicles',L:10,W:4,H:4.2,b:d=>{const g=new THREE.Group();box(g,d.L*.9,1.6,d.W*.55,0,.5,0,0x1f6f8f);box(g,d.L*.3,1.2,d.W*.5,d.L*.1,2.1,0,0x2c3642);box(g,d.L*.3,.2,d.W,d.L*.32,.1,0,0x8c8f93);return g;}},
