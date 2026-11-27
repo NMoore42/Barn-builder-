@@ -104,6 +104,10 @@ button:disabled{opacity:.45;cursor:default}
 .menu{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100% - 32px));z-index:5}
 .menu button{text-align:left}
+.slice{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100% - 32px));z-index:5}
+.slice .seg button{flex:1 1 0;padding:8px 6px}
+.slice input[type=range]{width:100%;height:44px;margin:0;accent-color:var(--marker)}
 .modal{position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;z-index:20;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;width:min(540px,100%);
@@ -123,6 +127,7 @@ button:disabled{opacity:.45;cursor:default}
   padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .bpbody svg{width:100%;max-width:1100px;height:auto;background:#ffffff;border:1px solid var(--line);flex:0 0 auto}
 
+@media (max-width:1280px){ .brand{display:none} }
 @media (max-width:640px){ .brand{display:none} button{padding:8px 10px} .maintabs{flex-wrap:wrap} .maintabs button{flex:1 1 40%;font-size:16px;min-height:48px} }
 @media print{
   html,body,.app{height:auto;overflow:visible}
@@ -149,6 +154,7 @@ button:disabled{opacity:.45;cursor:default}
     </div>
     <div class="group">
       <button id="btnUndo" disabled>Undo</button>
+      <button id="btnSlice" aria-pressed="false">Slice</button>
       <button id="btnBlueprint">Blueprint</button>
       <button id="btnMore" aria-expanded="false">Help &amp; more</button>
     </div>
@@ -160,6 +166,16 @@ button:disabled{opacity:.45;cursor:default}
     <button id="mCopy">Copy this layout to share</button>
     <button id="mPaste">Load a shared layout</button>
     <button id="mReset" class="danger">Start over from the sketch</button>
+  </div>
+
+  <div class="slice" id="slicePanel" hidden>
+    <div class="name">Slice the barn open</div>
+    <div class="seg" role="group" aria-label="Cut from which side">
+      <button data-from="front">Front</button><button data-from="back">Back</button><button data-from="left">Left</button><button data-from="right">Right</button>
+    </div>
+    <label for="sliceRange" class="dims" id="sliceLabel">How much to cut away</label>
+    <input type="range" id="sliceRange" min="0" max="50" step="1" value="25">
+    <div class="row"><button id="sliceDone" class="primary">Done</button><button id="sliceOff">Put it back together</button></div>
   </div>
 
   <div class="toast" id="toast" role="status" hidden></div>
@@ -319,6 +335,7 @@ const sidingTex=(()=>{const c=document.createElement('canvas');c.width=8;c.heigh
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;return t;})();
 
 /* ================= state ================= */
+const slicePlane=new THREE.Plane(new THREE.Vector3(0,0,-1),1e6); renderer.localClippingEnabled=true; roofMat.clippingPlanes=[slicePlane];
 const KEY='poleBarnPlanner.v1';
 let uid=1; const nid=()=>'i'+(uid++)+Math.random().toString(36).slice(2,6);
 const walls={}; let items=[];
@@ -329,7 +346,8 @@ WALL_DEFS.forEach(d=>{const dx=d.b[0]-d.a[0],dz=d.b[1]-d.a[1],L=Math.hypot(dx,dz
     m:{wall:new THREE.MeshLambertMaterial({color:0xffffff,map:sidingTex}),post:L3(0x8a6f4e),door:L3(0xffffff),groove:L3(0xbbbbbb),wood:L3(0x9a6a3c),
        glass:new THREE.MeshLambertMaterial({color:0x9cc7e6,transparent:true,opacity:.45}),
        none:new THREE.MeshBasicMaterial({color:0x1f4fd1,transparent:true,opacity:.5})}};
-  w.group.position.set(d.a[0],0,d.a[1]); w.group.rotation.y=Math.atan2(-w.dz,w.dx); w.group.userData.pick={kind:'wall',wallId:d.id}; wallsG.add(w.group);});
+  w.group.position.set(d.a[0],0,d.a[1]); w.group.rotation.y=Math.atan2(-w.dz,w.dx); w.group.userData.pick={kind:'wall',wallId:d.id}; wallsG.add(w.group);
+  for(const k in w.m)if(k!=='none')w.m[k].clippingPlanes=[slicePlane];});
 function applyColors(){roofMat.color.set(P.roof);for(const id in walls){const m=walls[id].m;m.wall.color.set(P.siding);m.door.color.set(P.door);m.groove.color.set(P.door).multiplyScalar(.78);}redraw();}
 
 function defaultState(){const s={v:1,b:Object.assign({},DEF_P),walls:{},items:EXAMPLE_ITEMS.map(i=>Object.assign({i:nid()},i))};
@@ -413,10 +431,10 @@ function tire(g,r,t,x,z){wheel(g,r,t,x,z);const hub=new THREE.Mesh(new THREE.Cyl
 function arch(g,r,x,W){const a=new THREE.Mesh(new THREE.CylinderGeometry(r*1.2,r*1.2,W+.02,20).rotateX(Math.PI/2),mat(DARK));a.position.set(x,r,0);g.add(a);}
 function auto(d,col,o){const g=new THREE.Group(),L=d.L,H=d.H,W=d.W,X=f=>(f-.5)*L,ry=Math.max(...o.glass.map(q=>q[1]));
   o.axles.forEach(f=>arch(g,o.r,X(f),W));
-  prof(g,o.body,L,H,W,col); prof(g,o.glass,L,H,W*.9,GLASS);
+  prof(g,o.body,L,H,W,col); prof(g,o.glass,L,H,W*.9,o.glassCol||GLASS);
   box(g,(o.roof[1]-o.roof[0])*L,H*(1-ry),W*.92,X((o.roof[0]+o.roof[1])/2),ry*H,0,col);
   o.pillars.forEach(f=>box(g,.28,H*(ry-o.belt)+.02,W*.915,X(f),o.belt*H,0,col));
-  if(o.bed)box(g,(o.bed[1]-o.bed[0])*L,.06,W*.84,X((o.bed[0]+o.bed[1])/2),o.belt*H-.02,0,DARK);
+  if(o.bed)box(g,(o.bed[1]-o.bed[0])*L,.06,W*.84,X((o.bed[0]+o.bed[1])/2),o.belt*H-.02,0,o.bedCol||DARK);
   o.axles.forEach(f=>[-1,1].forEach(sd=>tire(g,o.r,.7,X(f),sd*(W/2-.32))));
   [-1,1].forEach(sd=>{box(g,.1,H*.08,W*.2,L/2,H*o.lamp,sd*W*.36,0xf3f0d8);box(g,.1,H*.1,W*.1,-L/2,H*o.lamp,sd*W*.42,0xb3261e);});
   box(g,.08,H*.13,W*.46,L/2,H*(o.lamp-.03),0,DARK);
@@ -474,9 +492,9 @@ function legs(g,d,hh,col,t){[-1,1].forEach(a=>[-1,1].forEach(b=>box(g,t,hh,t,a*(
 const JOIST=.9;
 /* hang = how far below the main wall top the item hangs; dyn = shape depends on the wall height */
 const CAT={
-  car:{n:'Chevy Equinox',g:'Vehicles',L:15.25,W:6.05,H:5.45,b:d=>auto(d,0x4a6a8a,{r:1.15,clear:.15,belt:.59,lamp:.36,body:[[0,.16],[0,.5],[.02,.6],[.8,.58],[.97,.47],[1,.42],[1,.16]],glass:[[.03,.6],[.1,.93],[.6,.93],[.8,.58]],roof:[.095,.605],pillars:[.33,.52],axles:[.17,.8]})},
+  car:{n:'Chevy Equinox',g:'Vehicles',L:15.25,W:6.05,H:5.45,b:d=>auto(d,0x22252a,{glassCol:0x4b5d70,r:1.15,clear:.15,belt:.59,lamp:.36,body:[[0,.16],[0,.5],[.02,.6],[.8,.58],[.97,.47],[1,.42],[1,.16]],glass:[[.03,.6],[.1,.93],[.6,.93],[.8,.58]],roof:[.095,.605],pillars:[.33,.52],axles:[.17,.8]})},
   suv:{n:'SUV',g:'Vehicles',L:16.5,W:6.5,H:5.9,b:d=>auto(d,0x54606b,{r:1.25,clear:.16,belt:.59,lamp:.38,body:[[0,.17],[0,.52],[.015,.6],[.78,.58],[.97,.5],[1,.44],[1,.17]],glass:[[.02,.6],[.06,.93],[.62,.93],[.78,.58]],roof:[.055,.625],pillars:[.3,.5],axles:[.17,.8]})},
-  pickup:{n:'Ford F-250 crew cab',g:'Vehicles',L:20.83,W:6.67,H:6.75,b:d=>auto(d,0x8a2f26,{r:1.4,clear:.2,belt:.6,lamp:.44,bed:[.015,.325],body:[[0,.21],[0,.6],[.74,.6],[.76,.62],[.985,.585],[1,.52],[1,.21]],glass:[[.335,.6],[.355,.94],[.665,.94],[.76,.61]],roof:[.35,.67],pillars:[.52],axles:[.18,.8]})},
+  pickup:{n:'Ford F-250 crew cab',g:'Vehicles',L:20.83,W:6.67,H:6.75,b:d=>auto(d,0x22252a,{glassCol:0x4b5d70,bedCol:0x41454b,r:1.4,clear:.2,belt:.6,lamp:.44,bed:[.015,.325],body:[[0,.21],[0,.6],[.74,.6],[.76,.62],[.985,.585],[1,.52],[1,.21]],glass:[[.335,.6],[.355,.94],[.665,.94],[.76,.61]],roof:[.35,.67],pillars:[.52],axles:[.18,.8]})},
   tractor:{n:'Kubota B7500 with loader',g:'Vehicles',L:12.5,W:6,H:7.25,b:d=>kubota(d,0xe8601c,3.9)},
   bigtractor:{n:'Farm tractor',g:'Vehicles',L:15,W:7.5,H:9.5,b:d=>tractor(d,0xb8321f,false)},
   mower:{n:'Zero-turn mower',g:'Vehicles',L:6.5,W:5,H:4.5,b:d=>{const g=new THREE.Group();box(g,d.L*.5,.6,d.W,d.L*.2,.3,0,0xd9a514);box(g,d.L*.5,1.6,d.W*.6,-d.L*.2,.9,0,0x33373d);box(g,1.6,1.8,1.8,-d.L*.1,2.5,0,0x23262b);wheels(g,.9,.7,[-d.L*.25],d.W);return g;}},
@@ -564,7 +582,7 @@ function pickOf(o){while(o){if(o.userData&&o.userData.pick)return o.userData.pic
 function pick(e){if(mode==='look')return null;setRay(e);
   if(mode==='arrange'){const hits=ray.intersectObjects(itemsG.children,true).map(x=>({p:pickOf(x.object),pt:x.point})).filter(x=>x.p);
     const isLoft=x=>{const it=findItem(x.p.id);return it&&it.t==='loft';},best=hits.find(x=>!isLoft(x))||hits[0];return best?Object.assign({pt:best.pt},best.p):null;}
-  const hits=ray.intersectObjects(wallsG.children,true).map(x=>({p:pickOf(x.object),pt:x.point})).filter(x=>x.p);
+  const hits=ray.intersectObjects(wallsG.children,true).map(x=>({p:pickOf(x.object),pt:x.point})).filter(x=>x.p&&slicePlane.distanceToPoint(x.pt)>=-.01);
   const best=hits.find(x=>!walls[x.p.wallId].faded)||hits[0]; if(!best)return null;
   if(topView&&best.p.kind==='wall'){const w=walls[best.p.wallId],u=(best.pt.x-w.def.a[0])*w.dx+(best.pt.z-w.def.a[1])*w.dz,o=w.state==='solid'&&w.ops.find(q=>Math.abs(u-q.u)<=q.w/2);
     if(o)return {kind:'op',wallId:w.def.id,opId:o.i,pt:best.pt};}
@@ -730,6 +748,26 @@ function resize(){const w=app.clientWidth,hh=app.clientHeight;if(!w||!hh)return;
   const dh=Math.min(Math.max(dock.offsetHeight||0,200),hh*.45),bh=Math.min(document.querySelector('.bar').offsetHeight||64,hh*.25);
   visFrac=Math.max(.4,(hh-dh-bh)/hh);cam.setViewOffset(w,hh,0,Math.round((dh-bh)/2),w,hh);cam.updateProjectionMatrix();redraw();}
 
+/* ================= slice ================= */
+const slice={on:false,from:'front',d:{front:25,back:25,left:31,right:31}};
+const SLICE_WORDS={front:'the front',back:'the back',left:'the left side',right:'the right side'};
+function applySlice(){const f=slice.from,deep=f==='front'||f==='back',max=(deep?D_ALL:W_ALL)+2,d=clamp(slice.d[f],0,max),n=slicePlane.normal;
+  if(!slice.on){n.set(0,0,-1);slicePlane.constant=1e6;}
+  else if(f==='front'){n.set(0,0,-1);slicePlane.constant=D_ALL+1-d;}
+  else if(f==='back'){n.set(0,0,1);slicePlane.constant=1-d;}
+  else if(f==='left'){n.set(1,0,0);slicePlane.constant=1-d;}
+  else{n.set(-1,0,0);slicePlane.constant=W_ALL+1-d;}
+  const r=$('sliceRange');r.max=max;r.value=d;
+  $('sliceLabel').textContent=d<=1?'Slide to cut into the barn from '+SLICE_WORDS[f]+'.':'Cutting away '+(d-1)+' ft from '+SLICE_WORDS[f]+'.';
+  document.querySelectorAll('#slicePanel [data-from]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.from===f)));
+  $('btnSlice').setAttribute('aria-pressed',String(slice.on));redraw();}
+function openSlice(){closeMenu();slice.on=true;const p=$('slicePanel');p.style.top=(document.querySelector('.bar').offsetHeight+4)+'px';p.hidden=false;applySlice();}
+$('btnSlice').onclick=()=>{if(slice.on&&!$('slicePanel').hidden){$('slicePanel').hidden=true;return;}openSlice();};
+$('sliceDone').onclick=()=>{$('slicePanel').hidden=true;};
+$('sliceOff').onclick=()=>{slice.on=false;$('slicePanel').hidden=true;applySlice();};
+$('sliceRange').addEventListener('input',e=>{slice.d[slice.from]=+e.target.value;applySlice();});
+document.querySelectorAll('#slicePanel [data-from]').forEach(b=>{b.onclick=()=>{slice.from=b.dataset.from;applySlice();};});
+
 /* ================= menu, dialogs ================= */
 $('btnUndo').onclick=()=>{const s=undo.pop();if(!s)return;$('btnUndo').disabled=!undo.length;applyState(JSON.parse(s));save();};
 function closeMenu(){$('menu').hidden=true;$('btnMore').setAttribute('aria-expanded','false');}
@@ -756,6 +794,7 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,'This is a model of the barn with the new lean-tos. Nothing you do here can break anything, and Undo takes back the last change.'),
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
+  h('p',null,h('b',null,'Slice: '),'cuts the barn open from the front, back or either side so you can see in. Slide to choose how much to cut away. Nothing is changed; it only hides part of the walls and roof.'),
   h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
