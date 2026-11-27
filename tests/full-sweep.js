@@ -50,7 +50,7 @@ await T(p,'colors',async()=>{await tabs(p,3);await tapSel(p,'[aria-label="Siding
 await p.screenshot({path:path.join(OUT,name+'-2.png')});
 await tabs(p,0);
 // views
-for(const v of ['outside','above','inside'])await T(p,'view '+v,async()=>{await tapSel(p,'#v-'+v);return p.$eval('#v-'+v,e=>e.getAttribute('aria-pressed')==='true');});
+for(const v of ['outside','inside'])await T(p,'view '+v,async()=>{await tapSel(p,'#v-'+v);return p.$eval('#v-'+v,e=>e.getAttribute('aria-pressed')==='true');});
 for(const s of ['front','left','back','right','top'])await T(p,'quick view '+s,async()=>{await tapSel(p,'[data-snap="'+s+'"]');await p.waitForTimeout(550);return p.$eval('[data-snap="'+s+'"]',e=>e.getAttribute('aria-pressed')==='true');});
 await T(p,'eye level',async()=>{await tapSel(p,'[data-snap="front"]');await tapSel(p,'#snapEye');await p.waitForTimeout(600);const y=await p.evaluate(()=>window.__barn.cam.position.y);return y<7?true:'y='+y.toFixed(1);});
 await tapSel(p,'#snapEye');await p.waitForTimeout(500);
