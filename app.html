@@ -423,7 +423,7 @@ function emptyGroup(g){while(g.children.length){const c=g.children.pop();c.trave
 
 const groundMat=new THREE.MeshBasicMaterial({color:0xdbe2d9});
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(900,900),groundMat); ground.rotation.x=-Math.PI/2; ground.position.set(30,-0.22,24); scene.add(ground);
-let grid=null; const walk={on:false,x:0,z:0,y:0,h:0,p:-.06,hold:{},last:0,raf:0}; let look=null; const LAY={walls:true,items:true,loft:true,tags:true,floor:true,grid:true};
+let grid=null; const walk={on:false,x:0,z:0,y:0,h:0,p:-.06,hold:{},last:0,raf:0}; let look=null; const LAY={walls:true,trusses:true,items:true,loft:true,tags:true,floor:true,grid:true};
 function applyTheme(){const cs=getComputedStyle(document.documentElement), v=n=>cs.getPropertyValue(n).trim()||'#888';
   renderer.setClearColor(new THREE.Color(v('--sky'))); groundMat.color.set(v('--ground'));
   if(grid){scene.remove(grid);grid.geometry.dispose();grid.material.dispose();}
@@ -456,13 +456,24 @@ function buildRoof(){emptyGroup(roof);
   function quad(p){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(p.flat(),3));geo.setIndex([0,1,2,0,2,3]);geo.computeVertexNormals();roof.add(new THREE.Mesh(geo,roofMat));}
   const z0=-1,z1=D_ALL+1,o=.12,E=eave()+o,R=ridge()+o,H=leanHi()+o,Lo=leanLo()-(leanHi()-leanLo())/14+o;
   quad([[14,E,z0],[30,R,z0],[30,R,z1],[14,E,z1]]); quad([[46,E,z0],[30,R,z0],[30,R,z1],[46,E,z1]]);
-  quad([[14,H,z0],[-1,Lo,z0],[-1,Lo,z1],[14,H,z1]]); quad([[46,H,z0],[61,Lo,z0],[61,Lo,z1],[46,H,z1]]);}
+  quad([[14,H,z0],[-1,Lo,z0],[-1,Lo,z1],[14,H,z1]]); quad([[46,H,z0],[61,Lo,z0],[61,Lo,z1],[46,H,z1]]);buildTrusses();}
+/* roof trusses every 4 ft over the barn (bottom chord at wall height, W webs) and sloped rafters over the lean-tos */
+const trussG=new THREE.Group(),trussMat=new THREE.MeshLambertMaterial({color:0xb08a58});scene.add(trussG);
+function member(x1,y1,x2,y2,z,w,dp){const l=Math.hypot(x2-x1,y2-y1),m=new THREE.Mesh(new THREE.BoxGeometry(l,w||.45,dp||.15),trussMat);
+  m.position.set((x1+x2)/2,(y1+y2)/2,z);m.rotation.z=Math.atan2(y2-y1,x2-x1);trussG.add(m);}
+function buildTrusses(){emptyGroup(trussG);const E=eave()-.25,R=ridge()-.3,H=leanHi()-.25,Lo=leanLo()-(leanHi()-leanLo())/14-.25,x0=14,x1=46,xm=30,
+    b1=x0+(x1-x0)/3,b2=x0+2*(x1-x0)/3,ty=t=>E+(R-E)*t;
+  for(let z=.25;z<=D_ALL;z+=4){const zz=Math.min(z,D_ALL-.25);
+    member(x0,E,x1,E,zz);member(x0,E,xm,R,zz);member(xm,R,x1,E,zz);
+    member(b1,E,x0+(xm-x0)/2,ty(.5),zz,.3);member(b1,E,xm,R,zz,.3);member(b2,E,xm,R,zz,.3);member(b2,E,xm+(x1-xm)/2,ty(.5),zz,.3);
+    member(x0,H,-1,Lo,zz,.5);member(x1,H,61,Lo,zz,.5);}
+  trussG.visible=LAY.trusses;}
 const sidingTex=(()=>{const c=document.createElement('canvas');c.width=8;c.height=64;const x=c.getContext('2d');
   for(let i=0;i<2;i++){const g=x.createLinearGradient(0,i*32,0,i*32+32);g.addColorStop(0,'#8c8c8c');g.addColorStop(.14,'#efefef');g.addColorStop(1,'#ffffff');x.fillStyle=g;x.fillRect(0,i*32,8,32);}
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;return t;})();
 
 /* ================= state ================= */
-const slicePlane=new THREE.Plane(new THREE.Vector3(0,0,-1),1e6); renderer.localClippingEnabled=true; roofMat.clippingPlanes=[slicePlane];
+const slicePlane=new THREE.Plane(new THREE.Vector3(0,0,-1),1e6); renderer.localClippingEnabled=true; roofMat.clippingPlanes=[slicePlane]; trussMat.clippingPlanes=[slicePlane];
 const KEY='poleBarnPlanner.v1';
 let uid=1; const nid=()=>'i'+(uid++)+Math.random().toString(36).slice(2,6);
 const walls={}; let items=[];
@@ -681,7 +692,7 @@ function removeItemMesh(it){if(it.g){itemsG.remove(it.g);it.g.traverse(c=>{if(c.
 function itemShown(it){return CAT[it.t].g==='Loft'?LAY.loft:LAY.items;}
 function applyItemLayer(it){if(!it.g)return;const v=itemShown(it);it.g.visible=v;if(it.lab)it.lab.visible=v;}
 function applyLayers(){tagsOn=LAY.tags;wallsG.visible=LAY.walls;items.forEach(applyItemLayer);labelsG.visible=LAY.tags&&view!=='outside'&&!walk.on;
-  zoneLabels.forEach(z=>{z.me.visible=LAY.floor;});if(grid)grid.visible=LAY.grid;
+  zoneLabels.forEach(z=>{z.me.visible=LAY.floor;});if(grid)grid.visible=LAY.grid;trussG.visible=LAY.trusses;
   if(sel&&((sel.kind==='item'&&findItem(sel.id)&&!itemShown(findItem(sel.id)))||(sel.kind!=='item'&&!LAY.walls)))select(null);redraw();}
 function buildItem(it){removeItemMesh(it);const g=CAT[it.t].b(dims(it));g.userData.pick={kind:'item',id:it.i};it.g=g;itemsG.add(g);
   const tx=textTexture([CAT[it.t].n],'#ffffff','rgba(28,42,58,.82)'),sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx.t,depthWrite:false}));
@@ -1062,7 +1073,7 @@ const menuPage=settings=>{$('menuMain').hidden=settings;$('menuSettings').hidden
 $('mToSettings').onclick=()=>{menuPage(true);$('mBack').focus();};
 $('mBack').onclick=()=>{menuPage(false);$('mToSettings').focus();};
 $('btnMore').onclick=()=>{const m=$('menu');menuPage(false);m.style.top=(document.querySelector('.bar').offsetHeight+2)+'px';m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
-const LAYER_LIST=[['walls','Walls and doors'],['items','Vehicles and equipment'],['loft','Loft and stairs'],['tags','Name tags'],['floor','Floor labels'],['grid','Grid']];
+const LAYER_LIST=[['walls','Walls and doors'],['trusses','Roof trusses'],['items','Vehicles and equipment'],['loft','Loft and stairs'],['tags','Name tags'],['floor','Floor labels'],['grid','Grid']];
 function saveLayers(){try{localStorage.setItem(KEY+'.layers',JSON.stringify(LAY));}catch(e){}}
 function renderLayers(){const list=$('layerList');list.textContent='';LAYER_LIST.forEach(([k,l])=>{const cb=h('input',{type:'checkbox',id:'lay-'+k});cb.checked=LAY[k];
   cb.addEventListener('change',()=>{LAY[k]=cb.checked;saveLayers();applyLayers();});list.append(h('label',{class:'lrow',for:'lay-'+k},cb,l));});}
@@ -1185,7 +1196,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Quick views: '),'the small pad in the corner turns the barn to face you from the Front, Back, Left or Right, or looks down from the Top.'),
   h('p',null,h('b',null,'Eye level and Walk: '),'Eye level shows the barn from standing height. Walk puts you on foot outside the barn: hold the arrows on the left to walk forward, back and sideways, and ↺ ↻ on the right to turn. You can also slide a finger to look around. Walls stop you, but you can walk through doors and up the loft stairs. Tap Walk again to stop.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
-  h('p',null,h('b',null,'Slice and Layers: '),'are under the quick views pad. Slice cuts the barn open from one side so you can see in. Layers hides walls, vehicles, the loft, name tags, floor labels or the grid. Neither one changes the barn.'),
+  h('p',null,h('b',null,'Slice and Layers: '),'are under the quick views pad. Slice cuts the barn open from one side so you can see in. Layers hides walls, roof trusses, vehicles, the loft, name tags, floor labels or the grid. Neither one changes the barn.'),
   h('p',null,h('b',null,'Measure: '),'tap Measure, then tap two spots to see how far apart they are. You can tap the floor, a wall or a vehicle.'),
   h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side. To put something up there, add it while the loft is selected.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
@@ -1196,7 +1207,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=58, VERSION_DATE='Nov 27';
+const VERSION=59, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
