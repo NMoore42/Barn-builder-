@@ -149,6 +149,7 @@ button:disabled{opacity:.45;cursor:default}
     <button id="mLabels" aria-pressed="true">Name tags on items</button>
     <button id="mCopy">Save or share this barn</button>
     <button id="mPaste">Open a saved or shared barn</button>
+    <button id="mPdf">Share pictures and blueprint as PDFs</button>
     <button id="mRefresh">Refresh to get the latest version</button>
     <button id="mReset" class="danger">Start over from the sketch</button>
     <div class="dims" id="mVersion"></div>
@@ -177,6 +178,7 @@ button:disabled{opacity:.45;cursor:default}
     <div class="bphead">
       <div class="what"><h2>Blueprint</h2><div class="dims" id="bpStatus">Four sheets, drawn from the barn as it is right now.</div></div>
       <button id="bpPrint" hidden>Print</button>
+      <button id="bpShare">Share as PDFs</button>
       <button id="bpSave" class="primary">Save as PDF to print</button>
       <button id="bpClose">Back to the barn</button>
     </div>
@@ -881,12 +883,12 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side. To put something up there, add it while the loft is selected.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
-  h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print.'),
+  h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print. Share as PDFs sends pictures of the barn in 3D along with the blueprint.'),
   h('p',null,h('b',null,'Settings: '),'has this help, name tags, saving a barn to a file or opening one, and Refresh, which loads the newest version of the app without touching your projects.'),
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION='24, November 27';
+const VERSION='25, November 27';
 $('mVersion').textContent='Version '+VERSION+'. Refreshing keeps your projects.';
 $('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.');const go=()=>location.reload();
   try{fetch(location.href.split('#')[0],{cache:'reload'}).then(go,go);}catch(e){go();}};
@@ -1030,11 +1032,56 @@ function closeBlueprint(){$('bp').hidden=true;$('bpBody').textContent='';}
 function svgToPng(svg,w,hh){return new Promise((res,rej)=>{const img=new Image();
   img.onload=()=>{try{const c=document.createElement('canvas');c.width=w;c.height=hh;const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,w,hh);x.drawImage(img,0,0,w,hh);res(c.toDataURL('image/jpeg',.92));}catch(e){rej(e);}};
   img.onerror=()=>rej(new Error('image'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);});}
+const pdfDoc=()=>new window.jspdf.jsPDF({orientation:'landscape',unit:'in',format:'letter'});
+async function blueprintDoc(){const doc=pdfDoc(),sheets=blueprintSheets();
+  for(let i=0;i<sheets.length;i++){const img=await svgToPng(sheets[i],2200,1700);if(i)doc.addPage('letter','landscape');doc.addImage(img,'JPEG',0,0,11,8.5);}return doc;}
+/* pictures of the 3D barn from fixed angles, taken without disturbing what is on screen */
+function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:roof.visible,tags:labelsG.visible,top:topView,pr:renderer.getPixelRatio(),slice:slice.on,meas:measureG.visible,box:selBox?selBox.visible:false};
+  renderer.setPixelRatio(1);renderer.setSize(W,H,false);cam.clearViewOffset();cam.aspect=W/H;cam.updateProjectionMatrix();
+  renderer.setClearColor(new THREE.Color('#e7ece8'));groundMat.color.set('#dbe2d9');
+  slice.on=false;applySlice();measureG.visible=false;if(selBox)selBox.visible=false;
+  const vf=cam.fov*Math.PI/180,hf=2*Math.atan(Math.tan(vf/2)*cam.aspect),T=new THREE.Vector3(30,2,24),out=[];
+  const shot=(title,dir,roofOn,top)=>{roof.visible=roofOn;labelsG.visible=!roofOn;topView=!!top;
+    const need=top?Math.max(35/Math.tan(hf/2),29/Math.tan(vf/2)):Math.max(41/Math.tan(hf/2),32/Math.tan(vf/2));
+    cam.position.copy(T).add(new THREE.Vector3(dir[0],dir[1],dir[2]).normalize().multiplyScalar(need));cam.up.set(0,1,0);cam.lookAt(T);cam.updateMatrixWorld();
+    updateFade();renderer.render(scene,cam);out.push([title,canvas.toDataURL('image/jpeg',.9)]);};
+  try{shot('Outside, from the front',[.55,.5,1],true);shot('Outside, from the back',[-.6,.5,-1],true);
+    shot('Inside, from the front',[.5,.8,1],false);shot('Inside, from the back',[-.5,.8,-1],false);shot('From above',[0,1,.001],false,true);}
+  finally{roof.visible=keep.roof;labelsG.visible=keep.tags;topView=keep.top;slice.on=keep.slice;applySlice();measureG.visible=keep.meas;if(selBox)selBox.visible=keep.box;
+    renderer.setPixelRatio(keep.pr);cam.position.copy(keep.pos);applyTheme();resize();controls.update();updateFade();redraw();}
+  return out;}
+function viewsDoc(){const doc=pdfDoc(),views=captureViews(),name=(curProject()||{}).name||'Barn',today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
+  views.forEach(([title,img],i)=>{if(i)doc.addPage('letter','landscape');
+    doc.setTextColor(23,52,110);doc.setFont('helvetica','bold');doc.setFontSize(20);doc.text(title,.5,.7);
+    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.text(name+" - Tommy's Barn Builder - "+today,.5,.98);doc.text('Picture '+(i+1)+' of '+views.length,10.5,.7,{align:'right'});
+    doc.addImage(img,'JPEG',.5,1.15,10,6.25);
+    if(!i&&canLink){doc.setTextColor(31,79,209);doc.setFontSize(13);doc.textWithLink('Tap here to open this barn in 3D and look around it yourself',.5,7.85,{url:shareText()});}
+    else{doc.setFontSize(10);doc.text('Planning pictures. Check all measurements before building.',.5,7.85);}});
+  return doc;}
+async function savePdfFiles(files,note){
+  if(dlPromise){const dl=await dlPromise;if(!dl){note.textContent=NO_SAVE;return;}
+    try{for(const f of files)await dl.save({filename:f[0],data:f[1]});note.textContent='Saved both PDFs.';}catch(e){note.textContent=e&&e.code==='declined'?'Not saved.':NO_SAVE;}return;}
+  files.forEach((f,i)=>setTimeout(()=>{const a=document.createElement('a'),url=URL.createObjectURL(f[1]);a.href=url;a.download=f[0];document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);},i*800));
+  note.textContent='Saved both PDFs. The 3D pictures are file 1 and the blueprint is file 2.';}
+function sharePdfs(){closeMenu();
+  if(!window.jspdf||!window.jspdf.jsPDF){toast('The PDF tool did not load. Check the internet connection and try again.');return;}
+  const note=h('p',{role:'status'},'This makes two PDFs that open on any phone: pictures of the barn in 3D first, then the blueprint.'),row=h('div',{class:'row'});
+  const base=((curProject()||{}).name||'Barn').replace(/[^A-Za-z0-9 _-]+/g,'').trim().replace(/\s+/g,'-')||'Barn';
+  const start=h('button',{class:'primary',onclick:async()=>{start.disabled=true;note.textContent='Getting the PDFs ready. This takes a few seconds.';
+    try{const views=viewsDoc().output('blob'),plans=(await blueprintDoc()).output('blob'),files=[[base+'-1-3D-pictures.pdf',views],[base+'-2-blueprint.pdf',plans]];
+      let list=null;try{list=files.map(f=>new File([f[1]],f[0],{type:'application/pdf'}));}catch(e){}
+      const can=!dlPromise&&!!list&&!!navigator.share&&!!navigator.canShare&&navigator.canShare({files:list});
+      row.textContent='';
+      if(can)row.append(h('button',{class:'primary',onclick:()=>{navigator.share({files:list}).then(()=>{note.textContent='Shared.';},e=>{if(!e||e.name!=='AbortError')note.textContent='Sharing did not work here. Use Save them instead.';});}},'Share them'));
+      row.append(h('button',{class:can?'':'primary',onclick:()=>savePdfFiles(files,note)},'Save them'),h('button',{onclick:closeDialog},'Close'));
+      note.textContent='Ready: the 3D pictures first, then the blueprint.'+(can?' Tap Share them.':'');
+    }catch(e){note.textContent='The PDFs could not be made on this device.';start.disabled=false;}}},'Get them ready');
+  row.append(start,h('button',{onclick:closeDialog},'Cancel'));
+  dialog('Share the barn as PDFs',note,row);}
 async function savePdf(){const btn=$('bpSave');
   if(!window.jspdf||!window.jspdf.jsPDF){bpStatus('The PDF tool did not load. Check the internet connection and try again.');return;}
   btn.disabled=true;bpStatus('Making the PDF. This takes a few seconds.');
-  try{const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'in',format:'letter'}),sheets=blueprintSheets();
-    for(let i=0;i<sheets.length;i++){const png=await svgToPng(sheets[i],2200,1700);if(i)doc.addPage('letter','landscape');doc.addImage(png,'JPEG',0,0,11,8.5);}
+  try{const doc=await blueprintDoc();
     const blob=doc.output('blob'),name='barn-blueprint.pdf';
     if(dlPromise){const dl=await dlPromise;
       if(!dl){bpStatus(NO_SAVE);return;}
@@ -1043,6 +1090,7 @@ async function savePdf(){const btn=$('bpSave');
     }else{const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);bpStatus('Saved. Open barn-blueprint.pdf and print it from there.');}
   }catch(e){bpStatus('The PDF could not be made on this device. You can take a screenshot of each sheet and print the pictures.');}
   finally{btn.disabled=false;}}
+$('mPdf').onclick=sharePdfs; $('bpShare').onclick=sharePdfs;
 $('btnBlueprint').onclick=openBlueprint; $('bpClose').onclick=closeBlueprint; $('bpSave').onclick=savePdf;
 if(!window.claude){$('bpPrint').hidden=false;$('bpPrint').onclick=()=>window.print();}
 
@@ -1065,6 +1113,6 @@ if(incoming){const nm=cleanName(incoming.name);
   dialog('Open the shared barn?',h('p',null,'This link has a barn layout'+(nm?' called “'+nm+'”':'')+'. It opens as a new project, and your own projects stay as they are.'),
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{if(loadShared(incoming)){closeDialog();toast('Opened as a new project called '+curProject().name+'.');}else toast('That layout could not be opened.');}},'Open it'),h('button',{onclick:closeDialog},'No thanks')));}
 else if(!saved&&!seenHelp)help();
-window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets};
+window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews};
 })();
 </script>
