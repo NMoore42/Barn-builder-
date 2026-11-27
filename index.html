@@ -166,6 +166,10 @@ button:disabled{opacity:.45;cursor:default}
   padding:5px;border-radius:10px;background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.12);touch-action:none;-webkit-user-select:none;user-select:none}
 .walkpad button{min-height:0;height:46px;padding:0;font-size:20px;border-radius:6px;touch-action:none}
 .walkpad button:active,.walkpad button.on{background:var(--marker);color:var(--marker-ink);border-color:var(--marker)}
+.steerpad{position:absolute;right:max(12px,env(safe-area-inset-right,0px));z-index:4;display:grid;grid-template-columns:repeat(2,1fr);gap:3px;padding:5px;width:156px;box-sizing:border-box;
+  border-radius:10px;background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.12);touch-action:none;-webkit-user-select:none;user-select:none}
+.steerpad button{min-height:0;height:52px;padding:0;font-size:26px;border-radius:6px;touch-action:none}
+.steerpad button:active,.steerpad button.on{background:var(--marker);color:var(--marker-ink);border-color:var(--marker)}
 .walklabel{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pencil);text-transform:uppercase;letter-spacing:.06em}
 .layers{position:absolute;z-index:8;right:max(12px,env(safe-area-inset-right,0px));background:var(--panel);border:1px solid var(--line);border-radius:10px;
   padding:12px;width:min(270px,calc(100% - 32px));display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 14px rgba(0,0,0,.15);box-sizing:border-box}
@@ -174,7 +178,7 @@ button:disabled{opacity:.45;cursor:default}
 .lrow{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 4px;border-radius:8px;cursor:pointer;font-size:16px}
 .lrow input{width:22px;height:22px;margin:0;accent-color:var(--marker);flex:0 0 auto}
 .lrow:hover{background:var(--marker-soft)}
-@media (max-width:640px){ .walkpad{left:8px;grid-template-columns:repeat(3,36px);grid-auto-rows:36px;gap:2px;padding:3px} .walkpad button{height:36px;font-size:16px;border-radius:5px} .walklabel{font-size:10px} .snaprow{gap:2px} .layers{right:8px;padding:10px;gap:2px} .layers .dims{display:none} .layers .name{font-size:16px} .lrow{min-height:38px;font-size:15px} .snap{padding:3px;gap:2px;right:8px} .snapgrid{grid-template-columns:repeat(3,36px);grid-auto-rows:24px;gap:2px} .snap button{height:24px;font-size:11px;border-radius:5px} .snap .snapeye{height:24px} }
+@media (max-width:640px){ .steerpad{right:8px;width:120px;padding:3px;gap:2px} .steerpad button{height:42px;font-size:22px} .walkpad{left:8px;grid-template-columns:repeat(3,36px);grid-auto-rows:36px;gap:2px;padding:3px} .walkpad button{height:36px;font-size:16px;border-radius:5px} .walklabel{font-size:10px} .snaprow{gap:2px} .layers{right:8px;padding:10px;gap:2px} .layers .dims{display:none} .layers .name{font-size:16px} .lrow{min-height:38px;font-size:15px} .snap{padding:3px;gap:2px;right:8px} .snapgrid{grid-template-columns:repeat(3,36px);grid-auto-rows:24px;gap:2px} .snap button{height:24px;font-size:11px;border-radius:5px} .snap .snapeye{height:24px} }
 .shareopts{display:flex;flex-direction:column;gap:8px}
 .shareopt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;padding:10px 14px}
 .shareopt b{font-size:18px}
@@ -312,6 +316,9 @@ button:disabled{opacity:.45;cursor:default}
     <span></span><button data-walk="fwd" aria-label="Walk forward">▲</button><span></span>
     <button data-walk="left" aria-label="Step left">◀</button><span class="walklabel">Walk</span><button data-walk="right" aria-label="Step right">▶</button>
     <span></span><button data-walk="back" aria-label="Walk backward">▼</button><span></span>
+  </div>
+  <div class="steerpad" id="steerpad" hidden role="group" aria-label="Turn">
+    <button data-walk="tl" aria-label="Turn left">↺</button><button data-walk="tr" aria-label="Turn right">↻</button>
   </div>
   <div class="layers" id="layersPanel" hidden role="group" aria-label="Layers">
     <div class="name">Layers</div>
@@ -821,7 +828,7 @@ canvas.addEventListener('lostpointercapture',e=>{if(drag&&e.pointerId===drag.pid
 window.addEventListener('blur',()=>{active.clear();if(drag)finishDrag();});
 ['pointerup','pointercancel'].forEach(t=>window.addEventListener(t,e=>active.delete(e.pointerId),true));
 canvas.addEventListener('webglcontextrestored',redraw); document.addEventListener('visibilitychange',redraw);
-const WALK_KEYS={ArrowUp:'fwd',KeyW:'fwd',ArrowDown:'back',KeyS:'back',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'};
+const WALK_KEYS={ArrowUp:'fwd',KeyW:'fwd',ArrowDown:'back',KeyS:'back',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',KeyQ:'tl',KeyE:'tr'};
 window.addEventListener('keyup',e=>{const k=WALK_KEYS[e.code];if(k&&walk.on)holdWalk(k,false);});
 window.addEventListener('keydown',e=>{
   if(walk.on&&WALK_KEYS[e.code]&&$('modal').hidden&&document.activeElement.tagName!=='TEXTAREA'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();holdWalk(WALK_KEYS[e.code],true);return;}
@@ -956,7 +963,7 @@ function flyTo(d,keepTarget){const vf=cam.fov*Math.PI/180,hf=2*Math.atan(Math.ta
 function snapTo(k){if(k==='top'){if(walk.on)endWalk();eyeLevel=false;setViewMode('above');markSnap('top');return;}
   if(view==='above')setViewMode('inside');if(walk.on){startWalk(SNAP_DIRS[k]);markSnap(k);return;}flyTo(SNAP_DIRS[k]);markSnap(k);}
 /* ---- walk mode: eye level on foot. Solid walls, windows, posts, vehicles and the loft railing stop you; doors 6 ft and taller let you through; stairs carry you up to the loft ---- */
-const BODY=.55, EYE=5.5, WALK_SPEED=7;
+const BODY=.55, EYE=5.5, WALK_SPEED=7, TURN_SPEED=1.5;
 function localXZ(it,x,z){const r=it.r*Math.PI/180,dx=x-it.x,dz=z-it.z;return [dx*Math.cos(r)+dz*Math.sin(r),-dx*Math.sin(r)+dz*Math.cos(r)];}
 function floorAt(x,z,y){
   for(const st of items){if(st.t!=='stairs')continue;const d=dims(st),[lx,lz]=localXZ(st,x,z);
@@ -975,12 +982,13 @@ function tryStep(nx,nz){nx=clamp(nx,-60,120);nz=clamp(nz,-60,110);const fy=floor
 function walkPose(){const c=Math.cos(walk.p);return {P:new THREE.Vector3(walk.x,walk.y+EYE,walk.z),T:new THREE.Vector3(walk.x+Math.sin(walk.h)*c*10,walk.y+EYE+Math.sin(walk.p)*10,walk.z+Math.cos(walk.h)*c*10)};}
 function applyWalk(){const {P,T:t}=walkPose();cam.position.copy(P);controls.target.copy(t);cam.lookAt(t);updateFade();redraw();}
 function walkTick(now){if(!walk.on){walk.raf=0;return;}const dt=walk.last?Math.min(.05,(now-walk.last)/1000):1/60;walk.last=now;const H=walk.hold;
+  if(H.tl)walk.h+=TURN_SPEED*dt;if(H.tr)walk.h-=TURN_SPEED*dt;
   const f=(H.fwd?1:0)-(H.back?1:0),sd=(H.left?1:0)-(H.right?1:0);
   if(f||sd){const l=Math.hypot(f,sd),s=WALK_SPEED*dt/l,sn=Math.sin(walk.h),cs=Math.cos(walk.h),
     dx=(sn*f+cs*sd)*s,dz=(cs*f-sn*sd)*s;if(!tryStep(walk.x+dx,walk.z+dz)){tryStep(walk.x+dx,walk.z)||tryStep(walk.x,walk.z+dz);}}
   applyWalk();if(Object.values(H).some(Boolean))walk.raf=requestAnimationFrame(walkTick);else{walk.raf=0;walk.last=0;}}
-function holdWalk(k,v){walk.hold[k]=v;document.querySelectorAll('#walkpad [data-walk="'+k+'"]').forEach(b=>b.classList.toggle('on',v));if(v&&!walk.raf){walk.last=0;walk.raf=requestAnimationFrame(walkTick);}}
-document.querySelectorAll('#walkpad [data-walk]').forEach(b=>{const k=b.dataset.walk;
+function holdWalk(k,v){walk.hold[k]=v;document.querySelectorAll('#walkpad [data-walk="'+k+'"], #steerpad [data-walk="'+k+'"]').forEach(b=>b.classList.toggle('on',v));if(v&&!walk.raf){walk.last=0;walk.raf=requestAnimationFrame(walkTick);}}
+document.querySelectorAll('#walkpad [data-walk], #steerpad [data-walk]').forEach(b=>{const k=b.dataset.walk;
   b.addEventListener('pointerdown',e=>{e.preventDefault();try{b.setPointerCapture(e.pointerId);}catch(_){}holdWalk(k,true);});
   ['pointerup','pointercancel','lostpointercapture','pointerleave'].forEach(t=>b.addEventListener(t,()=>holdWalk(k,false)));
   b.addEventListener('contextmenu',e=>e.preventDefault());});
@@ -988,12 +996,12 @@ document.querySelectorAll('#walkpad [data-walk]').forEach(b=>{const k=b.dataset.
 function startWalk(d){const ext=Math.abs(d[0])*W_ALL/2+Math.abs(d[1])*D_ALL/2,dist=ext+15;
   walk.x=30+d[0]*dist;walk.z=24+d[1]*dist;walk.y=0;walk.h=Math.atan2(-d[0],-d[1]);walk.p=-.06;walk.hold={};
   if(sel)select(null);
-  const first=!walk.on;walk.on=true;labelsG.visible=false;controls.enabled=false;cam.near=.25;cam.updateProjectionMatrix();$('walkpad').hidden=false;placeSnap();
+  const first=!walk.on;walk.on=true;labelsG.visible=false;controls.enabled=false;cam.near=.25;cam.updateProjectionMatrix();$('walkpad').hidden=false;$('steerpad').hidden=false;placeSnap();
   const {P,T:t}=walkPose(),p0=cam.position.clone(),t0=controls.target.clone(),id=++snapAnim,start=performance.now(),dur=matchMedia('(prefers-reduced-motion: reduce)').matches?0:500;
   const step=now=>{if(id!==snapAnim||!walk.on)return;const f=dur?Math.min(1,(now-start)/dur):1,e=f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2;
     cam.position.lerpVectors(p0,P,e);controls.target.lerpVectors(t0,t,e);cam.lookAt(controls.target);redraw();if(f<1)requestAnimationFrame(step);else applyWalk();};
-  requestAnimationFrame(step);if(first)toast('Walking. Hold the arrows to walk and step sideways. Slide a finger to look around. Tap Walk again to stop.');}
-function endWalk(){walk.on=false;walk.hold={};look=null;document.querySelectorAll('#walkpad .on').forEach(b=>b.classList.remove('on'));$('walkpad').hidden=true;
+  requestAnimationFrame(step);if(first)toast('Walking. Left thumb: walk and step sideways. Right thumb: ↺ ↻ to turn. Tap Walk again to stop.');}
+function endWalk(){walk.on=false;walk.hold={};look=null;document.querySelectorAll('#walkpad .on, #steerpad .on').forEach(b=>b.classList.remove('on'));$('walkpad').hidden=true;$('steerpad').hidden=true;
   cam.near=1;cam.updateProjectionMatrix();controls.enabled=true;labelsG.visible=LAY.tags&&view!=='outside';updateFade();}
 /* the direction the camera is looking from right now, flattened to the ground; front when looking straight down */
 function currentDir(){const dx=cam.position.x-controls.target.x,dz=cam.position.z-controls.target.z,l=Math.hypot(dx,dz);return (view==='above'||l<.5)?[0,1]:[dx/l,dz/l];}
@@ -1018,7 +1026,8 @@ function resize(){const w=app.clientWidth,hh=app.clientHeight;if(!w||!hh)return;
   const dh=Math.min(Math.max(dock.offsetHeight||0,200),hh*.45),bh=Math.min(document.querySelector('.bar').offsetHeight||64,hh*.25);
   visFrac=Math.max(.4,(hh-dh-bh)/hh);cam.setViewOffset(w,hh,0,Math.round((dh-bh)/2),w,hh);cam.updateProjectionMatrix();
   placeSnap();redraw();}
-function placeSnap(){const b=((dock.offsetHeight||0)+10)+'px',sn=$('snap'),wp=$('walkpad');if(sn)sn.style.bottom=b;if(wp)wp.style.bottom=b;}
+function placeSnap(){const bb=(dock.offsetHeight||0)+10,b=bb+'px',sn=$('snap'),wp=$('walkpad'),sp=$('steerpad');if(sn)sn.style.bottom=b;if(wp)wp.style.bottom=b;
+  if(sp&&sn)sp.style.bottom=(bb+sn.offsetHeight+8)+'px';}
 if(window.ResizeObserver)new ResizeObserver(placeSnap).observe(dock);
 
 /* ================= slice ================= */
@@ -1194,7 +1203,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,'This is a model of the barn with the new lean-tos. Nothing you do here can break anything, and Undo takes back the last change.'),
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. Inside and Outside at the top take the roof off or put it on.'),
   h('p',null,h('b',null,'Quick views: '),'the small pad in the corner turns the barn to face you from the Front, Back, Left or Right, or looks down from the Top.'),
-  h('p',null,h('b',null,'Eye level and Walk: '),'Eye level shows the barn from standing height. Walk puts you on foot outside the barn: hold the arrows to walk forward, back and sideways, and slide a finger to look around. Walls stop you, but you can walk through doors and up the loft stairs. Tap Walk again to stop.'),
+  h('p',null,h('b',null,'Eye level and Walk: '),'Eye level shows the barn from standing height. Walk puts you on foot outside the barn: hold the arrows on the left to walk forward, back and sideways, and ↺ ↻ on the right to turn. You can also slide a finger to look around. Walls stop you, but you can walk through doors and up the loft stairs. Tap Walk again to stop.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
   h('p',null,h('b',null,'Slice and Layers: '),'are under the quick views pad. Slice cuts the barn open from one side so you can see in. Layers hides walls, vehicles, the loft, name tags, floor labels or the grid. Neither one changes the barn.'),
   h('p',null,h('b',null,'Measure: '),'tap Measure, then tap two spots to see how far apart they are. You can tap the floor, a wall or a vehicle.'),
@@ -1207,7 +1216,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=56, VERSION_DATE='Nov 27';
+const VERSION=57, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
