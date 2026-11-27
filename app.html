@@ -144,7 +144,7 @@ button:disabled{opacity:.45;cursor:default}
 .snap .snapeye{height:30px;font-size:13px}
 .snaprow{display:grid;grid-template-columns:1fr 1fr;gap:3px}
 .layers{position:absolute;z-index:8;right:max(12px,env(safe-area-inset-right,0px));background:var(--panel);border:1px solid var(--line);border-radius:10px;
-  padding:12px;width:min(270px,calc(100% - 32px));display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+  padding:12px;width:min(270px,calc(100% - 32px));display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 14px rgba(0,0,0,.15);box-sizing:border-box}
 .layers .name{font-size:18px}
 .layers .dims{font-size:13px;margin-bottom:4px}
 .lrow{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 4px;border-radius:8px;cursor:pointer;font-size:16px}
@@ -489,10 +489,16 @@ function applyState(s){
 const PKEY=KEY+'.projects'; let projects=[], curId=null;
 const curProject=()=>projects.find(p=>p.id===curId);
 function loadProjects(){try{const j=JSON.parse(localStorage.getItem(PKEY)||'null');
-  if(j&&Array.isArray(j.list)){projects=j.list.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string').map(p=>({id:p.id,name:p.name.slice(0,40),t:num(p.t,Date.now())}));curId=j.cur;}}catch(e){}}
+  if(j&&Array.isArray(j.list)){projects=cleanList(j.list);curId=j.cur;}}catch(e){}}
+function cleanList(l){return l.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string').map(p=>({id:p.id,name:p.name.slice(0,40),t:num(p.t,Date.now()),shared:!!p.shared}));}
+const goneIds=new Set();
 let savesWork=true;
 function storeFailed(){if(!savesWork)return;savesWork=false;setTimeout(showNotSaving,0);}
-function saveProjects(){try{localStorage.setItem(PKEY,JSON.stringify({list:projects,cur:curId}));}catch(e){storeFailed();}}
+function saveProjects(){try{let stored=[];try{const j=JSON.parse(localStorage.getItem(PKEY)||'null');if(j&&Array.isArray(j.list))stored=cleanList(j.list);}catch(e){}
+    stored.forEach(q=>{if(!goneIds.has(q.id)&&!projects.some(x=>x.id===q.id))projects.push(q);});
+    localStorage.setItem(PKEY,JSON.stringify({list:projects,cur:curId}));}catch(e){storeFailed();}}
+window.addEventListener('storage',e=>{if(e.key!==PKEY||!e.newValue)return;try{const j=JSON.parse(e.newValue);if(!j||!Array.isArray(j.list))return;
+  cleanList(j.list).forEach(q=>{const mine=projects.find(x=>x.id===q.id);if(!mine){if(!goneIds.has(q.id))projects.push(q);}else if(q.t>mine.t){mine.name=q.name;mine.t=q.t;}});updateProjectButton();}catch(_){}});
 function readProject(id){try{return JSON.parse(localStorage.getItem(KEY+'.p.'+id)||'null');}catch(e){return null;}}
 function writeProject(id,state){try{localStorage.setItem(KEY+'.p.'+id,JSON.stringify(state));savesWork=true;const b=document.getElementById('saveBar');if(b)b.remove();}catch(e){storeFailed();}}
 function save(){writeProject(curId,getState());const p=curProject();if(p){p.t=Date.now();saveProjects();}}
@@ -789,7 +795,7 @@ window.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&sel&&sel.kind!=='wall'&&$('modal').hidden&&$('bp').hidden&&document.activeElement.tagName!=='TEXTAREA'){e.preventDefault();removeSel();}});
 
 /* ================= actions ================= */
-function addItem(t){pushUndo();const d=CAT[t],it={i:nid(),t,x:snap(clamp(controls.target.x,2,58)),z:snap(clamp(controls.target.z,2,46)),r:d.L>d.W?90:0};
+function addItem(t){const lk=CAT[t].g==='Loft'?'loft':'items';if(!LAY[lk]){LAY[lk]=true;saveLayers();applyLayers();toast('Turned the '+(lk==='loft'?'Loft and stairs':'Vehicles and equipment')+' layer back on.');}pushUndo();const d=CAT[t],it={i:nid(),t,x:snap(clamp(controls.target.x,2,58)),z:snap(clamp(controls.target.z,2,46)),r:d.L>d.W?90:0};
   const lf=sel&&sel.kind==='item'&&findItem(sel.id);
   if(lf&&lf.t==='loft'&&canSit(it)){it.x=lf.x;it.z=lf.z;it.r=lf.r;it.up=true;}
   else for(let n=0;n<20&&items.some(o=>o.x===it.x&&o.z===it.z);n++){it.x+=2;it.z+=2;}
@@ -797,16 +803,17 @@ function addItem(t){pushUndo();const d=CAT[t],it={i:nid(),t,x:snap(clamp(control
   if(t==='stairs'){const to=(lf&&lf.t==='loft')?lf:items.find(q=>q.t==='loft');
     if(to){const E=loftEdges(to).filter(k=>!againstWall(k.A,k.B)).sort((x,y)=>y.len-x.len)[0];if(E){it.x=E.A[0]+E.e[0]*E.len/2+E.n[0]*6;it.z=E.A[1]+E.e[1]*E.len/2+E.n[1]*6;if(!snapStairs(it,to))placeItem(it);}}}
   select({kind:'item',id:it.i});commit();}
+function settleRiders(){items.forEach(q=>{if(q.up&&!loftAt(q)){q.up=false;}if(q.g&&q.up!==undefined)placeItem(q);});}
 function toggleUp(){const it=findItem(sel.id);if(!it)return;pushUndo();it.up=!it.up;placeItem(it);refreshSel();renderDock();commit();}
-function rotateSel(by){const it=findItem(sel.id);if(!it)return;const att=it.t==='loft'?attachedStairs(it):[];pushUndo();it.r=((it.r+by)%360+360)%360;
-  const a=by*Math.PI/180,c=Math.cos(a),sn=Math.sin(a);att.forEach(st=>{const dx=st.x-it.x,dz=st.z-it.z;st.x=it.x+dx*c-dz*sn;st.z=it.z+dx*sn+dz*c;});
-  placeItem(it);att.forEach(st=>{if(!snapStairs(st,it))placeItem(st);});refreshSel();commit();}
+function rotateSel(by){const it=findItem(sel.id);if(!it)return;const att=it.t==='loft'?attachedStairs(it).concat(items.filter(q=>q.up&&canSit(q)&&loftAt(q)===it)):[];pushUndo();it.r=((it.r+by)%360+360)%360;
+  const a=by*Math.PI/180,c=Math.cos(a),sn=Math.sin(a);att.forEach(st=>{if(st.t!=='stairs')st.r=((st.r+by)%360+360)%360;const dx=st.x-it.x,dz=st.z-it.z;st.x=it.x+dx*c-dz*sn;st.z=it.z+dx*sn+dz*c;});
+  placeItem(it);att.forEach(st=>{if(st.t!=='stairs'||!snapStairs(st,it))placeItem(st);});settleRiders();refreshSel();commit();}
 function dupSel(){const it=findItem(sel.id);if(!it)return;pushUndo();const c=Object.assign({},it,{i:nid(),x:it.x+3,z:it.z+3,g:null,lab:null});items.push(c);buildItem(c);select({kind:'item',id:c.i});commit();}
 function removeSel(){if(!sel)return;if(drag)endDrag();pushUndo();
   if(sel.kind==='item'){const it=findItem(sel.id);if(it){removeItemMesh(it);items=items.filter(x=>x!==it);}}
   else if(sel.kind==='op'){const w=walls[sel.wallId];w.ops=w.ops.filter(o=>o.i!==sel.opId);buildWall(w);}
-  refreshLofts();select(null);commit();}
-function resizeItem(k,by){const it=findItem(sel.id);if(!it)return;const lim=(CAT[it.t].lim||{})[k]||[.5,60],v=clamp(dims(it)[k]+by,lim[0],lim[1]);if(v===dims(it)[k])return;const att=it.t==='loft'?attachedStairs(it):[];pushUndo();it[k]=v;buildItem(it);att.forEach(st=>snapStairs(st,it));refreshSel();renderDock();commit();}
+  refreshLofts();settleRiders();select(null);commit();}
+function resizeItem(k,by){const it=findItem(sel.id);if(!it)return;const lim=(CAT[it.t].lim||{})[k]||[.5,60],v=clamp(dims(it)[k]+by,lim[0],lim[1]);if(v===dims(it)[k])return;const att=it.t==='loft'?attachedStairs(it):[];pushUndo();it[k]=v;buildItem(it);att.forEach(st=>snapStairs(st,it));settleRiders();refreshSel();renderDock();commit();}
 function addOp(t){const w=walls[sel.wallId],d=OPS[t],o={i:nid(),t,u:0,w:d.w,h:d.h,k:d.k},want=snap(tapU==null?w.L/2:tapU);
   let ok=false; for(let n=0;n<=w.L*2&&!ok;n++){for(const sgn of [1,-1]){const u=want+sgn*n*.5;o.u=u;o.w=d.w;o.h=d.h;fitOp(w,o);if(Math.abs(o.u-u)<.01&&!overlaps(w,o)){ok=true;break;}}}
   if(!ok){toast('There is no room left on this wall for that.');return;}
@@ -954,7 +961,8 @@ document.querySelectorAll('#slicePanel [data-from]').forEach(b=>{b.onclick=()=>{
 const measure={on:false,a:null,b:null,lab:null}, measureG=new THREE.Group(), floorPlane=new THREE.Plane(UP,0); scene.add(measureG);
 const measureMat=new THREE.MeshBasicMaterial({color:0x1f4fd1,depthTest:false,transparent:true});
 function measurePoint(e){setRay(e);
-  const hit=ray.intersectObjects([wallsG,itemsG],true).find(x=>{if(slicePlane.distanceToPoint(x.point)<-.01)return false;const k=pickOf(x.object);return !(k&&k.wallId&&walls[k.wallId].faded);});
+  const shown=o=>{for(let q=o;q;q=q.parent)if(!q.visible)return false;return !(o.material&&o.material.visible===false);};
+  const hit=ray.intersectObjects([wallsG,itemsG],true).find(x=>{if(!shown(x.object))return false;if(slicePlane.distanceToPoint(x.point)<-.01)return false;const k=pickOf(x.object);return !(k&&k.wallId&&walls[k.wallId].faded);});
   if(hit)return {x:hit.point.x,z:hit.point.z}; return ray.ray.intersectPlane(floorPlane,tmp)?{x:tmp.x,z:tmp.z}:null;}
 function drawMeasure(){emptyGroup(measureG);if(measure.lab){measure.lab.material.map.dispose();measure.lab.material.dispose();measure.lab=null;}
   const a=measure.a,b=measure.b,dot=q=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.1,20),measureMat);m.position.set(q.x,.08,q.z);m.renderOrder=10;measureG.add(m);};
@@ -986,14 +994,14 @@ function saveLayers(){try{localStorage.setItem(KEY+'.layers',JSON.stringify(LAY)
 function renderLayers(){const list=$('layerList');list.textContent='';LAYER_LIST.forEach(([k,l])=>{const cb=h('input',{type:'checkbox',id:'lay-'+k});cb.checked=LAY[k];
   cb.addEventListener('change',()=>{LAY[k]=cb.checked;saveLayers();applyLayers();});list.append(h('label',{class:'lrow',for:'lay-'+k},cb,l));});}
 function placeLayers(){const sn=$('snap').getBoundingClientRect(),ap=app.getBoundingClientRect(),pn=$('layersPanel');pn.style.bottom=(ap.bottom-sn.top+6)+'px';
-  pn.style.maxHeight=Math.max(160,sn.top-ap.top-12)+'px';pn.style.overflowY='auto';}
+  const bar=document.querySelector('.bar').getBoundingClientRect();pn.style.maxHeight=Math.max(140,sn.top-bar.bottom-14)+'px';pn.style.overflowY='auto';}
 function toggleLayers(open){const pn=$('layersPanel');open=open==null?pn.hidden:open;if(open){closeMenu();renderLayers();pn.hidden=false;placeLayers();}else pn.hidden=true;
   $('btnLayers').setAttribute('aria-pressed',String(open));$('btnLayers').setAttribute('aria-expanded',String(open));}
 $('btnLayers').onclick=()=>toggleLayers();
 canvas.addEventListener('pointerdown',()=>{if(!$('layersPanel').hidden)toggleLayers(false);});
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true;},Math.max(3200,msg.length*70));}
 function dialog(title,...body){const s=$('sheet');s.textContent='';s.append(h('h2',null,title),...body);$('modal').hidden=false;}
-function closeDialog(){$('modal').hidden=true;}
+function closeDialog(){$('modal').hidden=true;if(typeof openToken!=='undefined')openToken++;}
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeDialog();});
 const b64u=t=>btoa(unescape(encodeURIComponent(t))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const encode=o=>'BARN1:'+b64u(JSON.stringify(o));
@@ -1032,19 +1040,20 @@ async function squeeze(text,dir){const cs=dir?new CompressionStream('deflate-raw
   const input=dir?new TextEncoder().encode(text):text;const out=new Response(new Blob([input]).stream().pipeThrough(cs));
   return dir?new Uint8Array(await out.arrayBuffer()):await out.text();}
 async function encodeLinkAsync(st){if(!canSqueeze)return encodeLink(st);try{return 'barn5'+b32encBytes(await squeeze(JSON.stringify(compactState(st,true)),true));}catch(e){return encodeLink(st);}}
-async function decodeAsync(txt){const m=String(txt).replace(/\s+/g,'').match(/barn5([a-z2-7]+)/i);
-  if(!m)return decode(txt);
-  if(!canSqueeze)throw new Error('old browser');
-  const c=m[1];for(let n=0;n<=Math.min(8,c.length-8);n++){try{let o=JSON.parse(await squeeze(b32decBytes(c.slice(0,c.length-n)),false));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}
-  throw new Error('shape');}
+async function decodeAsync(txt){const raw=String(txt);
+  if(/^\s*\{/.test(raw)||/id="barn-data"/.test(raw)){try{return decode(raw);}catch(e){}}
+  const cands=[...raw.matchAll(/barn5([a-z2-7]{16,})/gi),...raw.replace(/\s+/g,'').matchAll(/barn5([a-z2-7]{16,})/gi)].map(m=>m[1]);
+  if(cands.length){if(!canSqueeze){try{return decode(raw);}catch(e){throw new Error('old browser');}}
+    for(const c of cands)for(let n=0;n<=Math.min(8,c.length-8);n++){try{let o=JSON.parse(await squeeze(b32decBytes(c.slice(0,c.length-n)),false));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}}
+  return decode(raw);}
 const barnPrint=st=>JSON.stringify(compactState(st,false));
 /* finds a layout inside whatever was pasted: a bare code, a link, or either one wrapped in other words or broken across lines */
 function decode(txt){const raw=String(txt),first=raw.trim();
   const pg=raw.match(/<script[^>]*id="barn-data"[^>]*>([\s\S]*?)<\/script>/i);
   if(pg){const o=JSON.parse(pg[1]);if(o&&typeof o==='object'&&o.walls)return o;throw new Error('shape');}
   if(first[0]==='{'){try{const o=JSON.parse(first);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}
-  const m4=raw.match(/barn4([a-z2-7]+)/i);
-  if(m4){const c=m4[1];for(let n=0;n<=Math.min(8,c.length-8);n++){try{let o=JSON.parse(b32dec(c.slice(0,c.length-n)));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}throw new Error('shape');}
+  const c4=[raw.match(/barn4([a-z2-7]{16,})/i),raw.replace(/\s+/g,'').match(/barn4([a-z2-7]{16,})/i)].filter(Boolean).map(m=>m[1]);
+  if(c4.length){for(const c of c4)for(let n=0;n<=Math.min(8,c.length-8);n++){try{let o=JSON.parse(b32dec(c.slice(0,c.length-n)));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(o&&typeof o==='object'&&o.walls)return o;}catch(e){}}throw new Error('shape');}
   const re=/BARN[123](?::|%3A)?([A-Za-z0-9+\/=_-]+)/i,cands=[];
   const one=b=>{b=b.replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');while(b.length%4)b+='=';
     let o=JSON.parse(decodeURIComponent(escape(atob(b))));if(o&&o.v===2&&Array.isArray(o.i))o=expandState(o);if(!o||typeof o!=='object'||!o.walls)throw new Error('shape');return o;};
@@ -1055,13 +1064,15 @@ function decode(txt){const raw=String(txt),first=raw.trim();
 /* a shared barn always arrives as its own project; returns the message to show, or null if it could not be read */
 /* the barn a shared layout would become, as saved text, or null when it cannot be read */
 function sharedKey(o){const before=JSON.stringify(getState());let key=null;try{applyState(o);key=barnPrint(getState());}catch(e){if(linkInfo)linkInfo.why='could not be built: '+String(e&&e.message||e).slice(0,80);}applyState(JSON.parse(before));return key;}
-function sameProject(key){const now=barnPrint(getState());return projects.find(q=>{if(q.id===curId)return now===key;const st=readProject(q.id);return !!st&&barnPrint(st)===key;});}
+function sameProjects(key){const now=barnPrint(getState());return projects.filter(q=>{if(q.id===curId)return now===key;const st=readProject(q.id);return !!st&&barnPrint(st)===key;});}
+/* the project a shared barn matches: one with the sender's name first, then one that itself arrived from someone, then any */
+function sameProject(key,nm){const all=sameProjects(key);return all.find(q=>nm&&q.name===nm)||all.find(q=>q.shared)||all[0];}
 function loadShared(o,copy){const before=JSON.stringify(getState());try{applyState(o);}catch(e){applyState(JSON.parse(before));return null;}
   const good=getState(),key=barnPrint(good);applyState(JSON.parse(before));
-  const same=!copy&&sameProject(key);
-  if(same){if(same.id!==curId)openProject(same.id);return 'You already have this barn. Showing “'+same.name+'”.';}
+  const same=!copy&&sameProject(key,cleanName(o.name));
+  if(same&&(same.shared||same.name===cleanName(o.name)||!cleanName(o.name))){if(same.id!==curId)openProject(same.id);return 'You already have this barn. Showing “'+same.name+'”.';}
   const want=cleanName(o.name)||'Shared barn',name=uniqueName(projects.some(q=>q.name===want)?want+' (shared)':want);
-  newProject(name,good);return 'Opened “'+name+'”. Your own barns are under the Project button.';}
+  newProject(name,good,true);return 'Opened “'+name+'”. Your own barns are under the Project button.';}
 const canLink=!window.claude&&/^https?:$/.test(location.protocol);
 /* the barn goes in ?b= rather than after #: Messages on iPhone dropped or cut the # part of earlier links */
 const linkFor=st=>location.origin+location.pathname+'?'+encodeLink(st);
@@ -1082,15 +1093,16 @@ const NO_FILE='A file could not be saved here. Use Copy the link instead and kee
 $('mCopy').onclick=()=>{closeMenu();const name=(curProject()||{}).name||'Barn',note=h('p',{class:'dims',role:'status'},'');
   dialog('Save “'+name+'” to a file',h('p',null,'Keeps a copy you can open later with Open a barn, or move to another device.'),
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>saveBarnFile(note)},'Save to a file'),h('button',{onclick:closeDialog},'Close')),note);};
-$('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placeholder:'Or paste a link or text here'}),err=h('p',{class:'warn',role:'status'},'');
-  const open=async text=>{let o;try{o=await decodeAsync(text);}catch(e){err.textContent='That is not a barn. Choose a file saved from this app, or paste the whole link or text.';return;}
-    const key=sharedKey(o),same=key&&sameProject(key);if(same){closeDialog();sameDialog(o,same);return;}
+let openToken=0;
+$('mPaste').onclick=()=>{closeMenu();const token=++openToken;const ta=h('textarea',{id:'codeIn',placeholder:'Or paste a link or text here'}),err=h('p',{class:'warn',role:'status'},'');
+  const open=async text=>{let o;try{o=await decodeAsync(text);}catch(e){if(token!==openToken)return;err.textContent='That is not a barn. Choose a file saved from this app, or paste the whole link or text.';return;}
+    if(token!==openToken)return;const key=sharedKey(o),nm=cleanName(o.name),same=key&&sameProject(key,nm);if(same&&(same.shared||same.name===nm||!nm)){closeDialog();sameDialog(o,same);return;}
     const m=loadShared(o);if(!m){err.textContent='That barn could not be opened.';return;}closeDialog();toast(m);};
   const pick=h('input',{type:'file',id:'barnFileIn','aria-label':'Choose a barn file'});
   pick.addEventListener('change',()=>{const f=pick.files&&pick.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>open(String(rd.result||''));rd.onerror=()=>{err.textContent='That file could not be read.';};rd.readAsText(f);});
   dialog('Open a barn',h('p',null,'Choose a file you saved from this app. It opens as a new project, and your other projects stay as they are.'),pick,ta,err,
     h('div',{class:'row'},(navigator.clipboard&&navigator.clipboard.readText)?h('button',{onclick:()=>{navigator.clipboard.readText().then(t=>{ta.value=t;open(t);},()=>{err.textContent='The clipboard could not be read. Tap in the box and choose Paste.';});}},'Paste and open'):null,
-      h('button',{class:'primary',onclick:()=>open(ta.value)},'Open what I pasted'),h('button',{onclick:closeDialog},'Cancel')));};
+      h('button',{class:'primary',onclick:()=>open(ta.value)},'Open what I pasted'),h('button',{onclick:()=>{openToken++;closeDialog();}},'Cancel')));};
 $('mReset').onclick=()=>{closeMenu();dialog('Start over from the sketch?',h('p',null,'This puts the building back to the original sketch and brings back the example items. Undo will reverse it.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{pushUndo();applyState(defaultState());save();closeDialog();}},'Start over'),h('button',{onclick:closeDialog},'Cancel')));};
 function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
@@ -1110,7 +1122,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=50, VERSION_DATE='Nov 27';
+const VERSION=51, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1130,10 +1142,11 @@ let projEdit=null, projDel=null;
 const cleanName=v=>String(v||'').replace(/\s+/g,' ').trim().slice(0,40);
 function uniqueName(base){let n=base,i=2;while(projects.some(p=>p.name===n))n=base+' '+(i++);return n;}
 function updateProjectButton(){const p=curProject(),b=$('btnProject');b.textContent='';b.append(h('span',{class:'wide-only'},'Project: '),p?p.name:'');b.setAttribute('aria-label','Project: '+(p?p.name:''));}
-function openProject(id){curId=id;saveProjects();undo.length=0;$('btnUndo').disabled=true;const st=readProject(id);
-  try{applyState(st&&st.walls?st:defaultState());}catch(e){applyState(defaultState());} updateProjectButton();}
-function newProject(name,state){const id='p'+nid();projects.push({id,name,t:Date.now()});writeProject(id,state);openProject(id);}
-function deleteProject(id){projects=projects.filter(p=>p.id!==id);try{localStorage.removeItem(KEY+'.p.'+id);}catch(e){}
+function keepBroken(id){try{const raw=localStorage.getItem(KEY+'.p.'+id);if(raw)localStorage.setItem(KEY+'.p.'+id+'.bad',raw);}catch(e){}}
+function loadInto(id){const st=readProject(id);try{applyState(st&&st.walls?st:defaultState());}catch(e){keepBroken(id);applyState(defaultState());toast('That barn could not be opened, so the starting sketch is shown. A copy of it was kept.');}}
+function openProject(id){curId=id;saveProjects();undo.length=0;$('btnUndo').disabled=true;loadInto(id);updateProjectButton();}
+function newProject(name,state,shared){const id='p'+nid();projects.push({id,name,t:Date.now(),shared:!!shared});writeProject(id,state);openProject(id);}
+function deleteProject(id){goneIds.add(id);projects=projects.filter(p=>p.id!==id);try{localStorage.removeItem(KEY+'.p.'+id);}catch(e){}
   projDel=null;if(id===curId)openProject(projects[0].id);else saveProjects();showProjects();}
 function showProjects(){closeMenu();
   const rows=projects.map(p=>{const cur=p.id===curId;
@@ -1260,7 +1273,7 @@ const dlPromise=(window.claude&&typeof window.claude.use==='function')?window.cl
 const bpStatus=m=>{$('bpStatus').textContent=m;};
 const NO_SAVE='Saving a PDF is not available in this view. You can take a screenshot of each sheet and print the pictures.';
 function openBlueprint(){closeMenu();$('bpBody').innerHTML=blueprintSheets().join('');bpStatus('Four sheets, drawn from the barn as it is right now.');$('bp').hidden=false;$('bpBody').scrollTop=0;}
-function closeBlueprint(){$('bp').hidden=true;$('bpBody').textContent='';}
+function closeBlueprint(){$('bp').hidden=true;$('bpBody').textContent='';const b=$('bpSave');b.__file=null;b.textContent='Save as PDF to print';}
 function svgToPng(svg,w,hh){return new Promise((res,rej)=>{const img=new Image();
   img.onload=()=>{try{const c=document.createElement('canvas');c.width=w;c.height=hh;const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,w,hh);x.drawImage(img,0,0,w,hh);res(c.toDataURL('image/jpeg',.92));}catch(e){rej(e);}};
   img.onerror=()=>rej(new Error('image'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);});}
@@ -1328,10 +1341,10 @@ function shareDialog(){closeMenu();
   const prepare=async(busy,make)=>{body.textContent='';note.textContent=busy;
     try{const [fname,blob,type]=await make();let list=null;try{list=[new File([blob],fname,{type})];}catch(e){}
       const can=!dlPromise&&!!list&&!!navigator.share&&!!navigator.canShare&&navigator.canShare({files:list});
-      note.textContent=can?'Ready. Tap Send it, then choose who to send it to.':'Ready.';
+      note.textContent=can?'Ready. Tap Send it, then choose who to send it to, or Save to Files to keep it.':'Ready.';
       const save=async()=>{await savePdfFiles([[fname,blob]],note);if(/^Saved/.test(note.textContent))done('Saved '+fname+'.');};
       body.append(h('div',{class:'row'},can?h('button',{class:'primary',onclick:()=>{navigator.share({files:list}).then(()=>done('Sent.'),e=>{if(!e||e.name!=='AbortError')note.textContent='Sending did not work here. Use Save it instead.';});}},'Send it'):null,
-        h('button',{class:can?'':'primary',onclick:save},'Save it'),h('button',{onclick:menu},'Back')));
+        (can&&touchDevice)?null:h('button',{class:can?'':'primary',onclick:save},'Save it'),h('button',{onclick:menu},'Back')));
     }catch(e){note.textContent='That could not be made on this device.';body.append(h('div',{class:'row'},h('button',{onclick:menu},'Back')));}};
   const page=()=>prepare('Making the barn page. This takes a few seconds.',async()=>{const f=await barnPageFile();return [f.name,new Blob([f.html],{type:'text/html'}),'text/html'];});
   const pdf=kind=>{if(!window.jspdf||!window.jspdf.jsPDF){note.textContent='The PDF tool did not load. Check the internet connection and try again.';return;}
@@ -1344,6 +1357,7 @@ function shareDialog(){closeMenu();
   menu();
   dialog('Share “'+name+'”',body,note,h('div',{class:'row'},h('button',{onclick:closeDialog},'Close')));}
 async function savePdf(){const btn=$('bpSave');
+  if(btn.__file){const f=btn.__file;navigator.share({files:[f]}).then(()=>{bpStatus('Done.');},e=>{if(!e||e.name!=='AbortError')bpStatus('That did not work here. Try Share instead.');});return;}
   if(!window.jspdf||!window.jspdf.jsPDF){bpStatus('The PDF tool did not load. Check the internet connection and try again.');return;}
   btn.disabled=true;bpStatus('Making the PDF. This takes a few seconds.');
   try{const doc=await blueprintDoc();
@@ -1352,7 +1366,9 @@ async function savePdf(){const btn=$('bpSave');
       if(!dl){bpStatus(NO_SAVE);return;}
       try{await dl.save({filename:name,data:blob});bpStatus('Saved. Open barn-blueprint.pdf and print it from there.');}
       catch(e){bpStatus(e&&e.code==='declined'?'Not saved.':e&&e.code==='rate_limited'?'Please wait a moment and try again.':NO_SAVE);}
-    }else{const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);bpStatus('Saved. Open barn-blueprint.pdf and print it from there.');}
+    }else{let f=null;try{f=new File([blob],fileBase()+'-blueprint.pdf',{type:'application/pdf'});}catch(e){}
+      if(f&&touchDevice&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){btn.__file=f;btn.textContent='Open the PDF';bpStatus('Ready. Tap Open the PDF, then Print or Save to Files.');return;}
+      const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);bpStatus('Saved. Open barn-blueprint.pdf and print it from there.');}
   }catch(e){bpStatus('The PDF could not be made on this device. You can take a screenshot of each sheet and print the pictures.');}
   finally{btn.disabled=false;}}
 $('mBlueprint').onclick=openBlueprint; $('mMeasure').onclick=()=>{closeMenu();setMeasure(!measure.on);};
@@ -1365,9 +1381,9 @@ let saved=null;
 try{saved=JSON.parse(localStorage.getItem(KEY)||'null');const ly=JSON.parse(localStorage.getItem(KEY+'.layers')||'null');
   if(ly&&typeof ly==='object')for(const k in LAY){if(typeof ly[k]==='boolean')LAY[k]=ly[k];} else if(localStorage.getItem(KEY+'.tags')==='0')LAY.tags=false;}catch(e){}
 loadProjects();
-if(!projects.length){projects=[{id:'p1',name:"Tom's barn",t:Date.now()}];curId='p1';writeProject('p1',saved&&saved.walls?saved:defaultState());saveProjects();}
+if(!projects.length){projects=[{id:'p1',name:"Tom's barn",t:Date.now()}];curId='p1';if(!readProject('p1'))writeProject('p1',saved&&saved.walls?saved:defaultState());saveProjects();}
 if(!curProject())curId=projects[0].id;
-{const s0=readProject(curId);try{applyState(s0&&s0.walls?s0:defaultState());}catch(e){applyState(defaultState());}}
+loadInto(curId);
 updateProjectButton();
 resize(); setView();
 const onResize=()=>{resize();updateFade();}; if(window.ResizeObserver)new ResizeObserver(onResize).observe(app); else window.addEventListener('resize',onResize);
@@ -1411,6 +1427,7 @@ async function readIncoming(){let o=null;const raw=location.search+location.hash
   try{history.replaceState(null,'',location.pathname);}catch(e){}if(o)linkInfo.why='';return o||{bad:true};}
 /* the layout matches a barn already here; the sender may have named it differently */
 function sameDialog(o,same){const nm=cleanName(o.name),open=same.id===curId,renamed=!!nm&&nm!==same.name;
+  if(renamed&&!same.shared){const m=loadShared(o,true);closeDialog();if(m)toast(m);return;}
   const show=()=>{if(same.id!==curId)openProject(same.id);};
   const copyBtn=h('button',{onclick:()=>{const m=loadShared(o,true);closeDialog();if(m)toast(m);}},'Open a copy anyway');
   if(renamed){const old=same.name,nn=projects.some(q=>q!==same&&q.name===nm)?uniqueName(nm):nm;same.name=nn;saveProjects();show();updateProjectButton();closeDialog();
@@ -1422,8 +1439,8 @@ function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
   const key=o.bad?null:sharedKey(o);
   if(key==null){dialog('That link could not be opened',h('p',null,'The barn in it could not be read. It may have been cut off when it was sent. Ask for it to be sent again, or as a file.'),
     linkInfo?h('p',{class:'dims'},'Details: app version '+VERSION+' · '+linkInfo.kind+' link · '+linkInfo.len+' characters · '+(linkInfo.why||'unknown')):null,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK')));return;}
-  const same=sameProject(key);
-  if(same){sameDialog(o,same);return;}
+  const same=sameProject(key,nm);
+  if(same&&(same.shared||same.name===nm||!nm)){sameDialog(o,same);return;}
   dialog('Open the shared barn?',h('p',null,'This link has a barn layout'+(nm?' called “'+nm+'”':'')+'. It opens as a new project, and your own projects stay as they are.'),
     h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{const m=loadShared(o);if(m){closeDialog();toast(m);}else toast('That layout could not be opened.');}},'Open it here'),
       (!inHomeApp&&touchDevice)?h('button',{onclick:()=>toHomeApp(o,o.__link)},'Open it in my Home Screen app'):null,h('button',{onclick:closeDialog},'No thanks')));
