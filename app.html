@@ -147,8 +147,8 @@ button:disabled{opacity:.45;cursor:default}
   <div class="menu" id="menu" hidden>
     <button id="mHelp">How to use this</button>
     <button id="mLabels" aria-pressed="true">Name tags on items</button>
-    <button id="mCopy">Copy this layout to share</button>
-    <button id="mPaste">Load a shared layout</button>
+    <button id="mCopy">Share or back up this barn</button>
+    <button id="mPaste">Open a shared barn</button>
     <button id="mRefresh">Refresh to get the latest version</button>
     <button id="mReset" class="danger">Start over from the sketch</button>
     <div class="dims" id="mVersion"></div>
@@ -828,17 +828,33 @@ function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTim
 function dialog(title,...body){const s=$('sheet');s.textContent='';s.append(h('h2',null,title),...body);$('modal').hidden=false;}
 function closeDialog(){$('modal').hidden=true;}
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeDialog();});
-const encode=s=>'BARN1:'+btoa(unescape(encodeURIComponent(JSON.stringify(s))));
-function decode(txt){const m=String(txt).replace(/\s+/g,'').match(/BARN1:([A-Za-z0-9+/=]+)/);if(!m)throw new Error('none');
-  const s=JSON.parse(decodeURIComponent(escape(atob(m[1]))));if(!s||typeof s!=='object'||!s.walls)throw new Error('shape');return s;}
-$('mCopy').onclick=()=>{closeMenu();const code=encode(getState());
-  const show=()=>{const ta=h('textarea',{id:'codeOut',readonly:true},code);dialog('Copy this layout',h('p',null,'Select all of the text below, copy it, and send it in a message or email.'),ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Done')));ta.focus();try{ta.setSelectionRange(0,code.length);}catch(e){ta.select();}};
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(code).then(()=>toast('Layout copied. Paste it into a message to share it.'),show);else show();};
-$('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placeholder:'Paste the layout text here (it starts with BARN1:)'}),err=h('p',{class:'warn'},'');
-  dialog('Load a shared layout',h('p',null,'It opens as a new project. Your other projects stay as they are.'),ta,err,
-    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{let s;try{s=decode(ta.value);}catch(e){err.textContent='That text is not a layout. Copy the whole thing, starting with BARN1:, and try again.';return;}
-      const before=JSON.stringify(getState());try{applyState(s);}catch(e){applyState(JSON.parse(before));err.textContent='That layout could not be loaded.';return;}
-      const good=getState();applyState(JSON.parse(before));newProject(uniqueName('Shared layout'),good);closeDialog();toast('Opened as a new project called '+curProject().name+'.');}},'Load layout'),h('button',{onclick:closeDialog},'Cancel')));};
+const encode=o=>'BARN1:'+btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+/* finds a layout inside whatever was pasted: a bare code, a link, or either one wrapped in other words or broken across lines */
+function decode(txt){const raw=String(txt),re=/BARN1(?::|%3A)([A-Za-z0-9+\/=_-]+)/i,cands=[];
+  const one=b=>{b=b.replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');while(b.length%4)b+='=';
+    const o=JSON.parse(decodeURIComponent(escape(atob(b))));if(!o||typeof o!=='object'||!o.walls)throw new Error('shape');return o;};
+  let m=raw.match(re);if(m)cands.push(m[1]); m=raw.replace(/\s+/g,'').match(re);if(m)cands.push(m[1]);
+  if(!cands.length)throw new Error('none');
+  for(const c of cands)for(let n=0;n<=Math.min(400,c.length-8);n++){try{return one(c.slice(0,c.length-n));}catch(e){}}
+  throw new Error('shape');}
+function loadShared(o){const before=JSON.stringify(getState());try{applyState(o);}catch(e){applyState(JSON.parse(before));return false;}
+  const good=getState();applyState(JSON.parse(before));newProject(uniqueName(cleanName(o.name)||'Shared barn'),good);return true;}
+const canLink=!window.claude&&/^https?:$/.test(location.protocol);
+function shareText(){const st=getState();st.name=(curProject()||{}).name||'';const code=encode(st);return canLink?location.origin+location.pathname+'#'+code:code;}
+function copyText(text,ta,note){const fail=()=>{ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='It could not be copied for you. The text below is selected: tap it and choose Copy.';};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>{note.textContent='Copied. Paste it into a message, an email or Notes.';},fail);else fail();}
+$('mCopy').onclick=()=>{closeMenu();const text=shareText(),name=(curProject()||{}).name||'Barn',send=canLink&&!!navigator.share;
+  const ta=h('textarea',{id:'codeOut','aria-label':'Layout to share'},text),note=h('p',{class:'dims',role:'status'},'');
+  dialog('Share or back up this barn',
+    h('p',null,canLink?'Send this link and it opens a copy of “'+name+'” on the other device. Keeping the link in Notes also works as a backup.':'Send this text to someone, or keep it in Notes as a backup. It is loaded with Open a shared barn.'),
+    h('div',{class:'row'},send?h('button',{class:'primary',onclick:()=>{navigator.share({title:"Tommy's Barn Builder: "+name,url:text}).then(()=>{note.textContent='Sent.';},()=>{});}},'Send it'):null,
+      h('button',{class:send?'':'primary',onclick:()=>copyText(text,ta,note)},canLink?'Copy the link':'Copy the text'),h('button',{onclick:closeDialog},'Close')),note,ta);};
+$('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placeholder:'Paste the link or text here'}),err=h('p',{class:'warn',role:'status'},'');
+  const load=()=>{let o;try{o=decode(ta.value);}catch(e){err.textContent='That is not a barn layout. Copy the whole link or text and try again.';return;}
+    if(!loadShared(o)){err.textContent='That layout could not be opened.';return;}closeDialog();toast('Opened as a new project called '+curProject().name+'.');};
+  dialog('Open a shared barn',h('p',null,'Paste the link or text someone sent you. It opens as a new project, and your other projects stay as they are.'),ta,err,
+    h('div',{class:'row'},(navigator.clipboard&&navigator.clipboard.readText)?h('button',{onclick:()=>{navigator.clipboard.readText().then(t=>{ta.value=t;load();},()=>{err.textContent='The clipboard could not be read. Tap in the box and choose Paste.';});}},'Paste and open'):null,
+      h('button',{class:'primary',onclick:load},'Open it'),h('button',{onclick:closeDialog},'Cancel')));};
 $('mReset').onclick=()=>{closeMenu();dialog('Start over from the sketch?',h('p',null,'This puts the building back to the original sketch and brings back the example items. Undo will reverse it.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{pushUndo();applyState(defaultState());save();closeDialog();}},'Start over'),h('button',{onclick:closeDialog},'Cancel')));};
 function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
@@ -851,11 +867,11 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
   h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print.'),
-  h('p',null,h('b',null,'Settings: '),'has this help, name tags, sharing a layout, and Refresh, which loads the newest version of the app without touching your projects.'),
+  h('p',null,h('b',null,'Settings: '),'has this help, name tags, sharing or backing up a barn, and Refresh, which loads the newest version of the app without touching your projects.'),
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION='22, November 27';
+const VERSION='23, November 27';
 $('mVersion').textContent='Version '+VERSION+'. Refreshing keeps your projects.';
 $('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.');const go=()=>location.reload();
   try{fetch(location.href.split('#')[0],{cache:'reload'}).then(go,go);}catch(e){go();}};
@@ -1027,7 +1043,13 @@ resize(); setView();
 const onResize=()=>{resize();updateFade();}; if(window.ResizeObserver)new ResizeObserver(onResize).observe(app); else window.addEventListener('resize',onResize);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{drawZoneLabels();items.forEach(buildItem);refreshSel();redraw();}).catch(()=>{});
 let seenHelp=false; try{seenHelp=!!localStorage.getItem(KEY+'.seen');localStorage.setItem(KEY+'.seen','1');}catch(e){}
-if(!saved&&!seenHelp)help();
+let incoming=null;
+if(/BARN1/i.test(location.hash)){try{incoming=decode(location.hash);}catch(e){try{incoming=decode(decodeURIComponent(location.hash));}catch(e2){}}
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
+if(incoming){const nm=cleanName(incoming.name);
+  dialog('Open the shared barn?',h('p',null,'This link has a barn layout'+(nm?' called “'+nm+'”':'')+'. It opens as a new project, and your own projects stay as they are.'),
+    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{if(loadShared(incoming)){closeDialog();toast('Opened as a new project called '+curProject().name+'.');}else toast('That layout could not be opened.');}},'Open it'),h('button',{onclick:closeDialog},'No thanks')));}
+else if(!saved&&!seenHelp)help();
 window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets};
 })();
 </script>
