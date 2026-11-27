@@ -1043,7 +1043,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=42, VERSION_DATE='Nov 27';
+const VERSION=43, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1323,9 +1323,8 @@ function readIncoming(){let o=null;const raw=location.search+location.hash;if(!/
 function sameDialog(o,same){const nm=cleanName(o.name),open=same.id===curId,renamed=!!nm&&nm!==same.name;
   const show=()=>{if(same.id!==curId)openProject(same.id);};
   const copyBtn=h('button',{onclick:()=>{const m=loadShared(o,true);closeDialog();if(m)toast(m);}},'Open a copy anyway');
-  if(renamed){dialog('You already have this barn',h('p',null,'It is the same layout as your “'+same.name+'”. On the device it came from, it is called “'+nm+'”.'),
-      h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{const nn=projects.some(q=>q!==same&&q.name===nm)?uniqueName(nm):nm;same.name=nn;saveProjects();show();updateProjectButton();closeDialog();toast('Renamed to “'+nn+'”.');}},'Use “'+nm+'”'),
-        h('button',{onclick:()=>{show();closeDialog();}},'Keep “'+same.name+'”'),copyBtn));return;}
+  if(renamed){const old=same.name,nn=projects.some(q=>q!==same&&q.name===nm)?uniqueName(nm):nm;same.name=nn;saveProjects();show();updateProjectButton();closeDialog();
+    toast('“'+old+'” is now called “'+nn+'”, the name it was sent with.');return;}
   dialog('You already have this barn',h('p',null,open?'This link is the same as “'+same.name+'”, which is open now. Nothing in it is new.':'This link is the same as your “'+same.name+'”.'),
     h('div',{class:'row'},open?h('button',{class:'primary',onclick:closeDialog},'OK'):h('button',{class:'primary',onclick:()=>{show();closeDialog();toast('Showing “'+same.name+'”.');}},'Show it'),
       copyBtn,open?null:h('button',{onclick:closeDialog},'Cancel')));}
