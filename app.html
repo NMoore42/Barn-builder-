@@ -87,6 +87,7 @@ button:disabled{opacity:.45;cursor:default}
 .menu{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100% - 32px));z-index:5}
 .menu button{text-align:left}
+.menu .dims{font-size:14px;padding:2px 6px 4px}
 .slice{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100% - 32px));z-index:5}
 .slice .seg button{flex:1 1 0;padding:8px 6px}
@@ -139,7 +140,7 @@ button:disabled{opacity:.45;cursor:default}
       <button id="btnSlice" aria-pressed="false">Slice</button>
       <button id="btnMeasure" aria-pressed="false">Measure</button>
       <button id="btnBlueprint">Blueprint</button>
-      <button id="btnMore" aria-expanded="false">Help &amp; more</button>
+      <button id="btnMore" aria-expanded="false">Settings</button>
     </div>
   </header>
 
@@ -148,7 +149,9 @@ button:disabled{opacity:.45;cursor:default}
     <button id="mLabels" aria-pressed="true">Name tags on items</button>
     <button id="mCopy">Copy this layout to share</button>
     <button id="mPaste">Load a shared layout</button>
+    <button id="mRefresh">Refresh to get the latest version</button>
     <button id="mReset" class="danger">Start over from the sketch</button>
+    <div class="dims" id="mVersion"></div>
   </div>
 
   <div class="slice" id="slicePanel" hidden>
@@ -848,9 +851,14 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
   h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print.'),
+  h('p',null,h('b',null,'Settings: '),'has this help, name tags, sharing a layout, and Refresh, which loads the newest version of the app without touching your projects.'),
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
+const VERSION='22, November 27';
+$('mVersion').textContent='Version '+VERSION+'. Refreshing keeps your projects.';
+$('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.');const go=()=>location.reload();
+  try{fetch(location.href.split('#')[0],{cache:'reload'}).then(go,go);}catch(e){go();}};
 
 /* ================= projects ================= */
 let projEdit=null, projDel=null;
