@@ -544,7 +544,15 @@ function storeFailed(){if(!savesWork)return;savesWork=false;setTimeout(showNotSa
 function saveProjects(){try{let stored=[];try{const j=JSON.parse(localStorage.getItem(PKEY)||'null');if(j&&Array.isArray(j.list))stored=cleanList(j.list);}catch(e){}
     stored.forEach(q=>{if(!goneIds.has(q.id)&&!projects.some(x=>x.id===q.id))projects.push(q);});
     localStorage.setItem(PKEY,JSON.stringify({list:projects,cur:curId}));}catch(e){storeFailed();}}
-window.addEventListener('storage',e=>{if(e.key!==PKEY||!e.newValue)return;try{const j=JSON.parse(e.newValue);if(!j||!Array.isArray(j.list))return;
+/* another copy of the app (a second tab, or the same page opened from a link) saved this project: show its version so stale work is never saved over it */
+function catchUp(){if(typeof applyState!=='function'||drag||walk.on&&walk.raf)return;const st=readProject(curId);if(!st||!st.walls)return;
+  const mine=JSON.stringify(getState()),theirs=JSON.stringify(st);if(mine===theirs)return;
+  const keepSel=sel;try{applyState(st);}catch(e){return;}if(keepSel&&keepSel.kind==='item'&&findItem(keepSel.id))select(keepSel);}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;const keep=curId;
+  try{loadProjects();projects=projects.filter(q=>!goneIds.has(q.id));}catch(e){}curId=keep;
+  if(!projects.some(q=>q.id===curId)){if(projects.length)openProject(projects[0].id);}else catchUp();updateProjectButton();});
+window.addEventListener('focus',()=>{catchUp();});
+window.addEventListener('storage',e=>{if(e.key===KEY+'.p.'+curId){catchUp();return;}if(e.key!==PKEY||!e.newValue)return;try{const j=JSON.parse(e.newValue);if(!j||!Array.isArray(j.list))return;
   cleanList(j.list).forEach(q=>{const mine=projects.find(x=>x.id===q.id);if(!mine){if(!goneIds.has(q.id))projects.push(q);}else if(q.t>mine.t){mine.name=q.name;mine.t=q.t;}});updateProjectButton();}catch(_){}});
 function readProject(id){try{return JSON.parse(localStorage.getItem(KEY+'.p.'+id)||'null');}catch(e){return null;}}
 function writeProject(id,state){try{localStorage.setItem(KEY+'.p.'+id,JSON.stringify(state));savesWork=true;const b=document.getElementById('saveBar');if(b)b.remove();}catch(e){storeFailed();}}
@@ -1231,7 +1239,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=60, VERSION_DATE='Nov 27';
+const VERSION=61, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
