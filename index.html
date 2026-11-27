@@ -497,7 +497,7 @@ function pontoon(d){const g=new THREE.Group();trailerBase(g,d,1.6,1.1);
 function boxTrailer(d,col,bodyBase){const g=new THREE.Group();trailerBase(g,d,bodyBase,1.2);box(g,d.L*.84,d.H-bodyBase,d.W,-d.L*.08,bodyBase,0,col);return g;}
 function plain(d,col){const g=new THREE.Group();box(g,d.L,d.H,d.W,0,0,0,col);return g;}
 function legs(g,d,hh,col,t){[-1,1].forEach(a=>[-1,1].forEach(b=>box(g,t,hh,t,a*(d.L/2-t/2),0,b*(d.W/2-t/2),col)));}
-const JOIST=.9;
+const JOIST=.9, HIDDEN=new THREE.MeshBasicMaterial({visible:false});
 /* hang = how far below the main wall top the item hangs; dyn = shape depends on the wall height */
 const CAT={
   car:{n:'Chevy Equinox',g:'Vehicles',L:15.25,W:6.05,H:5.45,b:d=>auto(d,0x22252a,{glassCol:0x4b5d70,r:1.15,clear:.15,belt:.59,lamp:.36,body:[[0,.16],[0,.5],[.02,.6],[.8,.58],[.97,.47],[1,.42],[1,.16]],glass:[[.03,.6],[.1,.93],[.6,.93],[.8,.58]],roof:[.095,.605],pillars:[.33,.52],axles:[.17,.8]})},
@@ -540,7 +540,8 @@ const CAT={
     return g;}},
   stairs:{n:'Loft stairs',g:'Loft',L:10.5,W:3.5,H:8,resize:true,keys:['W','H'],labels:{H:'Climbs'},lim:{W:[2.5,6],H:[6,14]},derive:d=>{d.L=Math.round(d.H*4/3*2)/2;},b:d=>{const g=new THREE.Group(),n=Math.max(3,Math.round(d.H*12/7.5)),run=d.L/n,rise=d.H/n;
     for(let i=0;i<n;i++)box(g,run+.05,.15,d.W,-d.L/2+run*(i+.5),rise*(i+1)-.15,0,0xb98a4e);
-    [-1,1].forEach(sd=>{const st=new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(d.L,d.H),.9,.15),mat(0x9a7b4f));st.position.set(0,d.H/2-.3,sd*(d.W/2));st.rotation.z=Math.atan2(d.H,d.L);g.add(st);});return g;}},
+    [-1,1].forEach(sd=>{const st=new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(d.L,d.H),.9,.15),mat(0x9a7b4f));st.position.set(0,d.H/2-.3,sd*(d.W/2));st.rotation.z=Math.atan2(d.H,d.L);g.add(st);});
+    const grab=new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(d.L,d.H),1.4,d.W),HIDDEN);grab.position.set(0,d.H/2-.2,0);grab.rotation.z=Math.atan2(d.H,d.L);g.add(grab);return g;}},
   custom:{n:'Custom box',g:'Other',L:6,W:4,H:4,resize:true,b:d=>plain(d,0xb98a4e)},
   person:{n:'Person, 6 ft',g:'Other',L:1.6,W:1.6,H:6,b:d=>{const g=new THREE.Group();cylY(g,.7,4.9,0,0,0,0x1f4fd1);const s=new THREE.Mesh(new THREE.SphereGeometry(.55,14,10),mat(0xe0b890));s.position.set(0,5.45,0);g.add(s);return g;}}
 };
@@ -569,6 +570,19 @@ function loftRails(it){const g=it.g,d=dims(it),r=it.r*Math.PI/180,c=Math.cos(r),
       if(e.x){box(rg,len,.2,.2,mx,d.H+3.4,mz,wood);box(rg,len,.12,.12,mx,d.H+1.8,mz,wood);}else{box(rg,.2,.2,len,mx,d.H+3.4,mz,wood);box(rg,.12,.12,len,mx,d.H+1.8,mz,wood);}
       const n=Math.max(1,Math.ceil(len/6));for(let i=0;i<=n;i++){const q=e.at(a+len*i/n);box(rg,.2,3.5,.2,q[0]+e.off[0],d.H,q[1]+e.off[1],wood);}});});
   g.userData.railSides=sides;}
+/* stairs clip onto the nearest open loft edge: they turn to face it, land on it and take the loft's height */
+function loftEdges(lf){const d=dims(lf),r=lf.r*Math.PI/180,c=Math.cos(r),sn=Math.sin(r),P=(x,z)=>[lf.x+x*c-z*sn,lf.z+x*sn+z*c],N=(x,z)=>[x*c-z*sn,x*sn+z*c],l=d.L/2,w=d.W/2;
+  return [[P(-l,w),P(l,w),N(0,1)],[P(-l,-w),P(l,-w),N(0,-1)],[P(l,-w),P(l,w),N(1,0)],[P(-l,-w),P(-l,w),N(-1,0)]].map(([A,B,n])=>{const len=Math.hypot(B[0]-A[0],B[1]-A[1]);return {A,B,n,len,e:[(B[0]-A[0])/len,(B[1]-A[1])/len]};});}
+function snapStairs(st,only){let best=null;const d0=dims(st);
+  items.forEach(lf=>{if(lf.t!=='loft'||(only&&lf!==only))return;loftEdges(lf).forEach(E=>{if(againstWall(E.A,E.B))return;
+    const dx=st.x-E.A[0],dz=st.z-E.A[1],dn=dx*E.n[0]+dz*E.n[1],t=dx*E.e[0]+dz*E.e[1];
+    if(dn<-1.5||dn>d0.L/2+3||t<-1||t>E.len+1)return;const sc=Math.abs(dn-d0.L/2);if(!best||sc<best.sc)best={sc,lf,E,t};});});
+  if(!best)return false;const E=best.E,H=clamp(dims(best.lf).H,6,14),changed=dims(st).H!==H;st.H=H;
+  const d=dims(st),t=clamp(best.t,Math.min(d.W/2,E.len/2),Math.max(E.len-d.W/2,E.len/2));
+  st.x=E.A[0]+E.e[0]*t+E.n[0]*d.L/2;st.z=E.A[1]+E.e[1]*t+E.n[1]*d.L/2;st.r=((Math.round(Math.atan2(-E.n[1],-E.n[0])*180/Math.PI*100)/100)%360+360)%360;
+  if(st.g){if(changed)buildItem(st);else placeItem(st);}return true;}
+function attachedStairs(lf){const edges=loftEdges(lf);return items.filter(st=>{if(st.t!=='stairs')return false;const d=dims(st),r=st.r*Math.PI/180,tx=st.x+d.L/2*Math.cos(r),tz=st.z+d.L/2*Math.sin(r);
+  return edges.some(E=>{const dx=tx-E.A[0],dz=tz-E.A[1],t=dx*E.e[0]+dz*E.e[1];return Math.abs(dx*E.n[0]+dz*E.n[1])<.6&&t>-.5&&t<E.len+.5;});});}
 function refreshLofts(){items.forEach(it=>{if(it.t==='loft'&&it.g)loftRails(it);});}
 function placeItem(it){const y=baseY(it);it.g.position.set(it.x,y,it.z);it.g.rotation.y=-it.r*Math.PI/180;it.lab.position.set(it.x,y+elev(it.t)+dims(it).H+(CAT[it.t].extra||0)+1.6,it.z);
   if(it.t==='loft'||it.t==='stairs')refreshLofts(); if(it.t==='loft')items.forEach(q=>{if(q.up&&q.g&&q!==it)placeItem(q);});}
@@ -616,7 +630,8 @@ function select(s){sel=s;refreshSel();renderDock();}
 let drag=null, down=null; const active=new Set();
 function endDrag(){drag=null;controls.enabled=true;}
 function cancelDrag(){if(!drag)return; if(drag.moved){dropUndo();
-    if(drag.kind==='item'){drag.it.x=drag.sx;drag.it.z=drag.sz;drag.riders.forEach(k=>{k.q.x=drag.sx+k.dx;k.q.z=drag.sz+k.dz;});placeItem(drag.it);} else{drag.o.u=drag.su;fitOp(drag.w,drag.o);buildWall(drag.w);}
+    if(drag.kind==='item'){drag.it.x=drag.sx;drag.it.z=drag.sz;drag.riders.forEach(k=>{k.q.x=drag.sx+k.dx;k.q.z=drag.sz+k.dz;if(k.q.t==='stairs')placeItem(k.q);});
+      if(drag.it.t==='stairs'){drag.it.r=drag.sr;if(drag.sH==null)delete drag.it.H;else drag.it.H=drag.sH;buildItem(drag.it);}else placeItem(drag.it);} else{drag.o.u=drag.su;fitOp(drag.w,drag.o);buildWall(drag.w);}
     refreshSel();updateSelText();}
   endDrag();down=null;redraw();}
 canvas.addEventListener('pointerdown',e=>{closeMenu();
@@ -627,7 +642,7 @@ canvas.addEventListener('pointerdown',e=>{closeMenu();
   const hit=measure.on?null:pick(e);
   if(mode==='arrange'&&hit&&hit.kind==='item'){const it=findItem(hit.id),pl=new THREE.Plane(UP,-hit.pt.y),p=planePoint(e,pl); if(!it||!p)return;
     if(!sel||sel.id!==it.i)select({kind:'item',id:it.i});
-    drag={kind:'item',it,pl,riders:it.t==='loft'?items.filter(q=>q.up&&canSit(q)&&loftAt(q)===it).map(q=>({q,dx:q.x-it.x,dz:q.z-it.z})):[],ox:it.x-p.x,oz:it.z-p.z,sx:it.x,sz:it.z,snap:JSON.stringify(getState()),moved:false,pid:e.pointerId};}
+    drag={kind:'item',it,pl,riders:it.t==='loft'?items.filter(q=>q.up&&canSit(q)&&loftAt(q)===it).concat(attachedStairs(it)).map(q=>({q,dx:q.x-it.x,dz:q.z-it.z})):[],sr:it.r,sH:it.H,ox:it.x-p.x,oz:it.z-p.z,sx:it.x,sz:it.z,snap:JSON.stringify(getState()),moved:false,pid:e.pointerId};}
   else if(mode==='build'&&hit&&hit.kind==='op'){const w=walls[hit.wallId],o=findOp(hit.wallId,hit.opId),u=wallU(w,e); if(!o||u==null)return;
     if(!sel||sel.opId!==o.i)select({kind:'op',wallId:hit.wallId,opId:o.i});
     drag={kind:'op',w,o,off:o.u-u,su:o.u,snap:JSON.stringify(getState()),moved:false,pid:e.pointerId};}
@@ -636,7 +651,8 @@ canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.pid)retur
   if(!drag.moved&&down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8)return;
   if(drag.kind==='item'){const p=planePoint(e,drag.pl);if(!p)return;const x=clamp(snap(p.x+drag.ox),-30,90),z=clamp(snap(p.z+drag.oz),-30,90);
     if(x===drag.it.x&&z===drag.it.z)return; if(!drag.moved){drag.moved=true;pushUndo(drag.snap);}
-    drag.it.x=x;drag.it.z=z;drag.riders.forEach(k=>{k.q.x=x+k.dx;k.q.z=z+k.dz;});placeItem(drag.it); if(selBox)selBox.update();}
+    drag.it.x=x;drag.it.z=z;drag.riders.forEach(k=>{k.q.x=x+k.dx;k.q.z=z+k.dz;if(k.q.t==='stairs')placeItem(k.q);});
+    if(drag.it.t==='stairs'){if(!snapStairs(drag.it))placeItem(drag.it);refreshSel();}else{placeItem(drag.it);if(selBox)selBox.update();}}
   else{const u=wallU(drag.w,e);if(u==null)return;const o=drag.o,before=o.u;o.u=snap(u+drag.off);fitOp(drag.w,o);
     if(overlaps(drag.w,o)||o.u===before){o.u=before;fitOp(drag.w,o);return;}
     if(!drag.moved){drag.moved=true;pushUndo(drag.snap);} buildWall(drag.w);refreshSel();}
@@ -665,15 +681,20 @@ function addItem(t){pushUndo();const d=CAT[t],it={i:nid(),t,x:snap(clamp(control
   const lf=sel&&sel.kind==='item'&&findItem(sel.id);
   if(lf&&lf.t==='loft'&&canSit(it)){it.x=lf.x;it.z=lf.z;it.r=lf.r;it.up=true;}
   else for(let n=0;n<20&&items.some(o=>o.x===it.x&&o.z===it.z);n++){it.x+=2;it.z+=2;}
-  items.push(it);buildItem(it);select({kind:'item',id:it.i});commit();}
+  items.push(it);buildItem(it);
+  if(t==='stairs'){const to=(lf&&lf.t==='loft')?lf:items.find(q=>q.t==='loft');
+    if(to){const E=loftEdges(to).filter(k=>!againstWall(k.A,k.B)).sort((x,y)=>y.len-x.len)[0];if(E){it.x=E.A[0]+E.e[0]*E.len/2+E.n[0]*6;it.z=E.A[1]+E.e[1]*E.len/2+E.n[1]*6;if(!snapStairs(it,to))placeItem(it);}}}
+  select({kind:'item',id:it.i});commit();}
 function toggleUp(){const it=findItem(sel.id);if(!it)return;pushUndo();it.up=!it.up;placeItem(it);refreshSel();renderDock();commit();}
-function rotateSel(by){const it=findItem(sel.id);if(!it)return;pushUndo();it.r=((it.r+by)%360+360)%360;placeItem(it);refreshSel();commit();}
+function rotateSel(by){const it=findItem(sel.id);if(!it)return;const att=it.t==='loft'?attachedStairs(it):[];pushUndo();it.r=((it.r+by)%360+360)%360;
+  const a=by*Math.PI/180,c=Math.cos(a),sn=Math.sin(a);att.forEach(st=>{const dx=st.x-it.x,dz=st.z-it.z;st.x=it.x+dx*c-dz*sn;st.z=it.z+dx*sn+dz*c;});
+  placeItem(it);att.forEach(st=>{if(!snapStairs(st,it))placeItem(st);});refreshSel();commit();}
 function dupSel(){const it=findItem(sel.id);if(!it)return;pushUndo();const c=Object.assign({},it,{i:nid(),x:it.x+3,z:it.z+3,g:null,lab:null});items.push(c);buildItem(c);select({kind:'item',id:c.i});commit();}
 function removeSel(){if(!sel)return;if(drag)endDrag();pushUndo();
   if(sel.kind==='item'){const it=findItem(sel.id);if(it){removeItemMesh(it);items=items.filter(x=>x!==it);}}
   else if(sel.kind==='op'){const w=walls[sel.wallId];w.ops=w.ops.filter(o=>o.i!==sel.opId);buildWall(w);}
   refreshLofts();select(null);commit();}
-function resizeItem(k,by){const it=findItem(sel.id);if(!it)return;const lim=(CAT[it.t].lim||{})[k]||[.5,60],v=clamp(dims(it)[k]+by,lim[0],lim[1]);if(v===dims(it)[k])return;pushUndo();it[k]=v;buildItem(it);refreshSel();renderDock();commit();}
+function resizeItem(k,by){const it=findItem(sel.id);if(!it)return;const lim=(CAT[it.t].lim||{})[k]||[.5,60],v=clamp(dims(it)[k]+by,lim[0],lim[1]);if(v===dims(it)[k])return;const att=it.t==='loft'?attachedStairs(it):[];pushUndo();it[k]=v;buildItem(it);att.forEach(st=>snapStairs(st,it));refreshSel();renderDock();commit();}
 function addOp(t){const w=walls[sel.wallId],d=OPS[t],o={i:nid(),t,u:0,w:d.w,h:d.h,k:d.k},want=snap(tapU==null?w.L/2:tapU);
   let ok=false; for(let n=0;n<=w.L*2&&!ok;n++){for(const sgn of [1,-1]){const u=want+sgn*n*.5;o.u=u;o.w=d.w;o.h=d.h;fitOp(w,o);if(Math.abs(o.u-u)<.01&&!overlaps(w,o)){ok=true;break;}}}
   if(!ok){toast('There is no room left on this wall for that.');return;}
@@ -727,6 +748,7 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
         h('div',{class:'row'},h('button',{onclick:()=>rotateSel(-15)},'Turn left'),h('button',{onclick:()=>rotateSel(15)},'Turn right'),h('button',{onclick:()=>rotateSel(90)},'Quarter turn'),
           (canSit(it)&&loftAt(it))?h('button',{class:it.up?'':'primary',onclick:toggleUp},it.up?'Put on the floor':'Put on the loft'):null,
           h('button',{onclick:dupSel},'Copy'),h('button',{class:'danger',onclick:removeSel},'Remove'))));
+      if(it.t==='stairs')dock.append(h('p',{class:'hint'},'Drag the stairs close to a loft and they clip on, turn to face it and match its height.'));
       if(it.t==='loft')dock.append(h('p',{class:'hint'},'To put something on the loft, add it while the loft is selected. Or drag an item over the loft and tap Put on the loft.'));
       if(c.resize){const lab=Object.assign({L:'Long',W:'Wide',H:'Tall'},c.labels||{}),stp=k=>(k==='H'&&c.stepH)||c.step||.5;
         dock.append(h('div',{class:'row'},(c.keys||['L','W','H']).map(k=>stepper(lab[k],ft(d[k]),()=>resizeItem(k,-stp(k)),()=>resizeItem(k,stp(k))))));}
