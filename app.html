@@ -39,7 +39,8 @@ button:disabled{opacity:.45;cursor:default}
   pointer-events:none}
 .bar > *{pointer-events:auto}
 .brand{font-family:var(--font-head);font-size:22px;letter-spacing:.02em;text-transform:uppercase;margin:0;
-  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;line-height:1.2}
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 12px;line-height:1.1}
+.brand small{display:block;font-family:var(--font-ui);font-size:11px;font-weight:500;letter-spacing:.03em;text-transform:none;color:var(--pencil)}
 .spacer{flex:1 1 0;min-width:0}
 .projbtn{max-width:min(300px,60vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .proj{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:12px}
@@ -87,7 +88,8 @@ button:disabled{opacity:.45;cursor:default}
 .menu{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100% - 32px));z-index:5}
 .menu button{text-align:left}
-.menu .dims{font-size:14px;padding:2px 6px 4px}
+.menu .dims{font-size:14px;line-height:1.4;padding:2px 6px 4px}
+.menu .dims b{color:var(--ink)}
 .slice{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100% - 32px));z-index:5}
 .slice .seg button{flex:1 1 0;padding:8px 6px}
@@ -127,7 +129,7 @@ button:disabled{opacity:.45;cursor:default}
   <canvas id="scene" tabindex="0" aria-label="3D view of the barn"></canvas>
 
   <header class="bar">
-    <h1 class="brand">Tommy's Barn Builder</h1>
+    <h1 class="brand">Tommy's Barn Builder<small>Software by Nick Moore</small></h1>
     <button id="btnProject" class="projbtn" aria-haspopup="dialog">Project</button>
     <div class="spacer"></div>
     <div class="seg" role="group" aria-label="How to look at it">
@@ -875,6 +877,7 @@ $('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placehol
 $('mReset').onclick=()=>{closeMenu();dialog('Start over from the sketch?',h('p',null,'This puts the building back to the original sketch and brings back the example items. Undo will reverse it.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{pushUndo();applyState(defaultState());save();closeDialog();}},'Start over'),h('button',{onclick:closeDialog},'Cancel')));};
 function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
+  h('p',{class:'dims'},'Software by Nick Moore'),
   h('p',null,'This is a model of the barn with the new lean-tos. Nothing you do here can break anything, and Undo takes back the last change.'),
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
@@ -888,8 +891,9 @@ function help(){closeMenu();dialog("Welcome to Tommy's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION='25, November 27';
-$('mVersion').textContent='Version '+VERSION+'. Refreshing keeps your projects.';
+const VERSION=26, VERSION_DATE='November 27';
+$('mVersion').append(h('div',null,h('b',null,"Tommy's Barn Builder"),', version '+VERSION+' ('+VERSION_DATE+')'),h('div',null,'Software by Nick Moore'),
+  h('div',null,'Price: free, plus one cold beer per version. Tommy, your tab stands at '+VERSION+' beers.'),h('div',null,'Refreshing keeps your projects.'));
 $('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.');const go=()=>location.reload();
   try{fetch(location.href.split('#')[0],{cache:'reload'}).then(go,go);}catch(e){go();}};
 
@@ -938,7 +942,7 @@ function opTags(){const out=[];WALL_DEFS.forEach(d=>{const w=walls[d.id];if(w.st
 function sheetWrap(n,title,scaleNote,body){const today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
   return '<svg xmlns="http://www.w3.org/2000/svg" width="'+BW+'" height="'+BH+'" viewBox="0 0 '+BW+' '+BH+'" font-family="Helvetica,Arial,sans-serif">'+
     '<rect width="'+BW+'" height="'+BH+'" fill="#ffffff"/>'+sv.rect(24,24,BW-48,BH-48,2)+sv.line(24,BH-84,BW-24,BH-84,2)+
-    sv.text(40,BH-56,"TOMMY'S BARN BUILDER",15,'start',true)+sv.text(40,BH-38,((curProject()||{}).name||'Barn')+' · Planning drawing, check measurements before building',10)+
+    sv.text(40,BH-60,"TOMMY'S BARN BUILDER",15,'start',true)+sv.text(40,BH-47,'Software by Nick Moore',9)+sv.text(40,BH-33,((curProject()||{}).name||'Barn')+' · Planning drawing, check measurements before building',10)+
     sv.text(BW/2,BH-52,title,20,'middle',true)+sv.text(BW/2,BH-36,scaleNote,10,'middle')+
     sv.text(BW-40,BH-56,'Sheet '+n+' of 4',13,'end',true)+sv.text(BW-40,BH-38,today,10,'end')+body+'</svg>';}
 function planSheet(tags){const sc=10,ox=(BW-W_ALL*sc)/2,oy=130,X=x=>ox+x*sc,Y=z=>oy+z*sc;let s='';
@@ -1053,7 +1057,7 @@ function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:
 function viewsDoc(){const doc=pdfDoc(),views=captureViews(),name=(curProject()||{}).name||'Barn',today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
   views.forEach(([title,img],i)=>{if(i)doc.addPage('letter','landscape');
     doc.setTextColor(23,52,110);doc.setFont('helvetica','bold');doc.setFontSize(20);doc.text(title,.5,.7);
-    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.text(name+" - Tommy's Barn Builder - "+today,.5,.98);doc.text('Picture '+(i+1)+' of '+views.length,10.5,.7,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.text(name+" - Tommy's Barn Builder, software by Nick Moore - "+today,.5,.98);doc.text('Picture '+(i+1)+' of '+views.length,10.5,.7,{align:'right'});
     doc.addImage(img,'JPEG',.5,1.15,10,6.25);
     if(!i&&canLink){doc.setTextColor(31,79,209);doc.setFontSize(13);doc.textWithLink('Tap here to open this barn in 3D and look around it yourself',.5,7.85,{url:shareText()});}
     else{doc.setFontSize(10);doc.text('Planning pictures. Check all measurements before building.',.5,7.85);}});
