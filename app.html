@@ -494,7 +494,7 @@ const CAT={
   atv:{n:'Four-wheeler',g:'Vehicles',L:7,W:4,H:4,b:d=>vehicle(d,0xa02a2a,[.3,.6],.95)},
   moto:{n:'Motorcycle',g:'Vehicles',L:7,W:2.8,H:4,b:d=>{const g=new THREE.Group();wheel(g,1,.4,d.L*.36,0);wheel(g,1,.4,-d.L*.36,0);box(g,d.L*.55,1.4,1,0,1.5,0,0x23262b);box(g,.3,1.2,d.W,d.L*.25,2.8,0,0x8c8f93);return g;}},
   sled:{n:'Snowmobile',g:'Vehicles',L:10,W:4,H:4.2,b:d=>{const g=new THREE.Group();box(g,d.L*.9,1.6,d.W*.55,0,.5,0,0x1f6f8f);box(g,d.L*.3,1.2,d.W*.5,d.L*.1,2.1,0,0x2c3642);box(g,d.L*.3,.2,d.W,d.L*.32,.1,0,0x8c8f93);return g;}},
-  boat:{n:'G3 boat on trailer',g:'Trailers & boats',L:17.17,W:6.5,H:5.5,b:boat},
+  boat:{n:'G3 Angler V172 on trailer',g:'Trailers & boats',L:22,W:8,H:6.5,b:boat},
   pontoon:{n:'Pontoon on trailer',g:'Trailers & boats',L:26,W:8.5,H:9.5,b:pontoon},
   camper:{n:'Camper',g:'Trailers & boats',L:28,W:8,H:10.5,b:d=>{const g=boxTrailer(d,0xf0efe9,1.8);box(g,d.L*.84,.5,d.W+.05,-d.L*.08,4,0,0x8a6f4e);return g;}},
   enclosed:{n:'Enclosed trailer',g:'Trailers & boats',L:20,W:8,H:9,b:d=>boxTrailer(d,0x3d444d,1.6)},
