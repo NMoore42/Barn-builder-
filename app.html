@@ -316,7 +316,7 @@ function applyColors(){roofMat.color.set(P.roof);for(const id in walls){const m=
 function defaultState(){const s={v:1,b:Object.assign({},DEF_P),walls:{},items:EXAMPLE_ITEMS.map(i=>Object.assign({i:nid()},i))};
   WALL_DEFS.forEach(d=>s.walls[d.id]={s:d.s,o:d.o.map(o=>Object.assign({i:nid()},o))});return s;}
 function getState(){const s={v:1,b:Object.assign({},P),walls:{},items:items.map(it=>{const o={i:it.i,t:it.t,x:it.x,z:it.z,r:it.r};['L','W','H'].forEach(k=>{if(it[k]!=null)o[k]=it[k];});return o;})};
-  for(const id in walls)s.walls[id]={s:walls[id].state,o:walls[id].ops.map(o=>({i:o.i,t:o.t,u:o.u,w:o.w,h:o.h,k:o.k}))};return s;}
+  for(const id in walls)s.walls[id]={s:walls[id].state,o:walls[id].ops.map(o=>({i:o.i,t:o.t,u:o.u,w:o.w,h:o.h,k:o.k,d:o.d||0}))};return s;}
 function applyState(s){
   if(drag){drag=null;controls.enabled=true;}
   const seen=new Set(),freshId=v=>{let id=typeof v==='string'||typeof v==='number'?String(v):'';if(!id||seen.has(id))id=nid();seen.add(id);return id;};
@@ -327,7 +327,7 @@ function applyState(s){
   for(const id in walls){const ws=has(sw,id)&&sw[id]&&typeof sw[id]==='object'?sw[id]:null, w=walls[id]; w.ops=[];
     w.state=ws&&WALL_STATES.some(x=>x[0]===ws.s)?ws.s:w.def.s;
     ((ws&&Array.isArray(ws.o)&&ws.o)||[]).forEach(o=>{if(!o||!has(OPS,o.t))return;const d=OPS[o.t];
-      const n={i:freshId(o.i),t:o.t,u:num(o.u,w.L/2),w:clamp(num(o.w,d.w),d.minW,d.maxW),h:clamp(num(o.h,d.h),2,d.maxH||d.h),k:d.k};
+      const n={i:freshId(o.i),t:o.t,u:num(o.u,w.L/2),w:clamp(num(o.w,d.w),d.minW,d.maxW),h:clamp(num(o.h,d.h),2,d.maxH||d.h),k:d.k,d:o.t==='slider'?clamp(Math.round(num(o.d,0)),-1,1):0};
       fitOp(w,n); if(!overlaps(w,n))w.ops.push(n);});
     buildWall(w);}
   items.forEach(removeItemMesh); items=[];
@@ -371,8 +371,10 @@ function buildWall(w){const g=w.group; emptyGroup(g);
     if(o.t==='entry'){box(og,o.w-.15,o.eh-.08,.2,0,.06,0,w.m.door);box(og,.25,.25,.34,o.w/2-.55,3,0,w.m.groove);}
     else if(o.t==='double'){box(og,o.w/2-.12,o.eh-.08,.2,-o.w/4,.06,0,w.m.door);box(og,o.w/2-.12,o.eh-.08,.2,o.w/4,.06,0,w.m.door);}
     else if(o.t==='ohd'){box(og,o.w-.1,o.eh-.06,.16,0,.06,0,w.m.door);const n=Math.max(3,Math.round(o.eh/2));for(let i=1;i<n;i++)box(og,o.w-.1,.07,.2,0,o.eh*i/n,0,w.m.groove);}
-    else if(o.t==='slider'){box(og,o.w/2-.05,o.eh,.18,-o.w/4,.06,T/2+.1,w.m.wood);box(og,o.w/2-.05,o.eh,.18,o.w/4,.06,T/2+.1,w.m.wood);
-      const a=Math.max(0,o.u-o.w),b=Math.min(L,o.u+o.w);box(og,b-a,.3,.2,(a+b)/2-o.u,o.eh+.15,T/2+.1,w.m.groove);}
+    else if(o.t==='slider'){const z=T/2+.1,dir=o.d||0;
+      if(dir){box(og,o.w-.05,o.eh,.18,0,.06,z,w.m.wood);box(og,.15,o.eh-.4,.24,-dir*(o.w/2-.4),.25,z,w.m.groove);}
+      else{box(og,o.w/2-.05,o.eh,.18,-o.w/4,.06,z,w.m.wood);box(og,o.w/2-.05,o.eh,.18,o.w/4,.06,z,w.m.wood);}
+      const a=Math.max(0,o.u-(dir<0?1.5:dir>0?.5:1)*o.w),b=Math.min(L,o.u+(dir>0?1.5:dir<0?.5:1)*o.w);box(og,b-a,.3,.2,(a+b)/2-o.u,o.eh+.15,z,w.m.groove);}
     else {box(og,o.w-.15,o.eh-.15,.1,0,.08,0,w.m.glass);box(og,.12,o.eh-.1,.16,0,.05,0,w.m.door);box(og,o.w,.14,T+.2,0,-.07,0,w.m.door);}
   });}
 const CENTER=[30,24];
@@ -546,6 +548,7 @@ function resizeOp(k,by){const w=walls[sel.wallId],o=findOp(sel.wallId,sel.opId);
   const bad=overlaps(w,o),same=o.w===was.w&&o.eh===was.eh;
   if(bad||same){Object.assign(o,was);if(bad)toast('There is no room to make it wider here.');else if(by>0)toast(k==='w'?'That is as wide as it goes.':'That is as tall as this wall allows.');return;}
   const now={w:o.w,h:o.h,u:o.u,eh:o.eh};Object.assign(o,was);pushUndo();Object.assign(o,now);buildWall(w);refreshSel();renderDock();commit();}
+function setSlide(v){const w=walls[sel.wallId],o=findOp(sel.wallId,sel.opId);if(!o||(o.d||0)===v)return;pushUndo();o.d=v;buildWall(w);refreshSel();renderDock();commit();}
 function setWallState(s){const w=walls[sel.wallId];if(w.state===s)return;pushUndo();w.state=s;buildWall(w);updateFade();refreshSel();renderDock();commit();}
 function setParam(k,by,lo,hi){const cur=k==='lean'?leanLo():k==='leanIn'?leanHi():P[k],v=clamp(cur+by,lo,hi);if(v===cur)return;pushUndo();P[k]=v;
   for(const id in walls){const w=walls[id];w.ops.forEach(o=>fitOp(w,o));buildWall(w);}
@@ -601,7 +604,10 @@ function renderDock(){const scroll=dock.querySelector('.chips'),keep=scroll?scro
       h('div',{class:'row'},stepper('Wide',ft(o.w),()=>resizeOp('w',-d.stepW),()=>resizeOp('w',d.stepW)),
         d.stepH?stepper('Tall',ft(o.eh),()=>resizeOp('h',-d.stepH),()=>resizeOp('h',d.stepH)):null,
         h('button',{class:'danger',onclick:removeSel},'Remove'))));
-    dock.append(h('p',{class:'hint'},'Drag it to slide it along the wall.'));
+    if(o.t==='slider'){const ax=Math.abs(w.dx)>.5;
+      dock.append(h('div',{class:'row'},h('div',{class:'seg',role:'group','aria-label':'How it opens'},[[0,'Splits both ways'],[-1,ax?'Slides left':'Slides toward the back'],[1,ax?'Slides right':'Slides toward the front']]
+        .map(([v,l])=>h('button',{'aria-pressed':String((o.d||0)===v),onclick:()=>setSlide(v)},l)))));}
+    dock.append(h('p',{class:'hint'},'Drag it to move it along the wall.'));
   } else dock.append(h('p',{class:'hint'},'Tap a wall to add a door or window there, or to open the wall up. Tap a door to change its size, drag it to slide it. A blue strip on the floor marks a wall that has been taken out; tap it to put the wall back.'));
 }
 
@@ -717,7 +723,8 @@ function planSheet(tags){const sc=10,ox=(BW-W_ALL*sc)/2,oy=130,X=x=>ox+x*sc,Y=z=
       if(o.t==='entry'||o.t==='double'){(o.t==='entry'?[[u0,u1]]:[[u0,m],[u1,m]]).forEach(([hg,fr])=>{const len=Math.abs(fr-hg)*sc,tx=px(hg)+nx*len,ty=py(hg)+ny*len;
           s+=sv.line(px(hg),py(hg),tx,ty,1.2)+'<path d="M'+r1(tx)+' '+r1(ty)+' A'+r1(len)+' '+r1(len)+' 0 0 '+(((fr-hg)*sg>0)?1:0)+' '+r1(px(fr))+' '+r1(py(fr))+'" fill="none" stroke="'+INK+'" stroke-width=".8"/>';});}
       else if(o.t==='ohd'){s+=sv.line(px(u0),py(u0),px(u1),py(u1),1,'6 4')+sv.line(px(u0)+nx*4,py(u0)+ny*4,px(u1)+nx*4,py(u1)+ny*4,.8,'6 4');}
-      else if(o.t==='slider'){s+=sv.line(px(u0)+nx*5,py(u0)+ny*5,px(u1)+nx*5,py(u1)+ny*5,2.5)+sv.line(px(u0),py(u0),px(u1),py(u1),.6,'2 3');}
+      else if(o.t==='slider'){s+=sv.line(px(u0)+nx*5,py(u0)+ny*5,px(u1)+nx*5,py(u1)+ny*5,2.5)+sv.line(px(u0),py(u0),px(u1),py(u1),.6,'2 3');
+        if(o.d){const e0=o.d>0?u1:u0,e1=clamp(e0+o.d*o.w,0,w.L);s+=sv.line(px(e0)+nx*5,py(e0)+ny*5,px(e1)+nx*5,py(e1)+ny*5,.8,'5 3');}}
       else {[-2.5,0,2.5].forEach(k=>{s+=sv.line(px(u0)+nx*k,py(u0)+ny*k,px(u1)+nx*k,py(u1)+ny*k,.8);});}
       if(tg)s+=sv.tag(px(m)-nx*16,py(m)-ny*16,tg.n);});
     s+=sv.line(px(u),py(u),px(w.L),py(w.L),5);});
@@ -733,7 +740,7 @@ function opFace(x0,base,sc,o,tag){const w=o.w*sc,hh=o.eh*sc,y=base-(o.k+o.eh)*sc
   if(o.t==='ohd'){const n=Math.max(3,Math.round(o.eh/2));for(let i=1;i<n;i++)s+=sv.line(x0,y+hh*i/n,x0+w,y+hh*i/n,.6);}
   else if(o.t==='window')s+=sv.line(x0+w/2,y,x0+w/2,y+hh,.6)+sv.line(x0,y+hh/2,x0+w,y+hh/2,.6);
   else if(o.t==='double')s+=sv.line(x0+w/2,y,x0+w/2,y+hh,.8);
-  else if(o.t==='slider')s+=sv.line(x0+w/2,y,x0+w/2,y+hh,.8)+sv.line(x0,y,x0+w/2,y+hh,.5)+sv.line(x0+w/2,y,x0+w,y+hh,.5)+sv.line(x0-w/2,y-3,x0+w*1.5,y-3,1.5);
+  else if(o.t==='slider')s+=(o.d?sv.line(x0,y,x0+w,y+hh,.5)+sv.line(x0,y+hh,x0+w,y,.5):sv.line(x0+w/2,y,x0+w/2,y+hh,.8)+sv.line(x0,y,x0+w/2,y+hh,.5)+sv.line(x0+w/2,y,x0+w,y+hh,.5))+sv.line(x0-w/2,y-3,x0+w*1.5,y-3,1.5);
   else s+='<circle cx="'+r1(x0+w-5)+'" cy="'+r1(y+hh*.55)+'" r="1.5" fill="'+INK+'"/>';
   return s+(tag?sv.tag(x0+w/2,y+hh/2,tag.n):'');}
 /* faces: [wallId, position in feet along the drawing where the wall's u = 0 sits]; X turns feet into drawing units and may be mirrored */
@@ -767,7 +774,7 @@ function listSheet(tags){let s='',y=70,y2=70;const L=44,R=660,row=17;
   s+=sv.text(L,y,'No.',10,'start',true)+sv.text(L+34,y,'Type',10,'start',true)+sv.text(L+150,y,'Wall',10,'start',true)+sv.text(L+372,y,'Size (wide x tall)',10,'start',true)+sv.text(L+480,y,'From corner',10,'start',true);y+=row;
   if(!tags.length){s+=sv.text(L,y,'No doors or windows yet.',11);y+=row;}
   tags.slice(0,32).forEach(t=>{const alongX=Math.abs(t.w.dx)>.5;
-    s+=sv.text(L+4,y,t.n,11,'start',true)+sv.text(L+34,y,OPS[t.o.t].n,11)+sv.text(L+150,y,t.w.def.n,11)+sv.text(L+372,y,fi(t.o.w)+' x '+fi(t.o.eh),11)+sv.text(L+480,y,fi(t.o.u-t.o.w/2)+' from '+(alongX?'left':'back'),11);y+=row;});
+    s+=sv.text(L+4,y,t.n,11,'start',true)+sv.text(L+34,y,t.o.t==='slider'&&t.o.d?'Sliding door, one way':OPS[t.o.t].n,11)+sv.text(L+150,y,t.w.def.n,11)+sv.text(L+372,y,fi(t.o.w)+' x '+fi(t.o.eh),11)+sv.text(L+480,y,fi(t.o.u-t.o.w/2)+' from '+(alongX?'left':'back'),11);y+=row;});
   if(tags.length>32)s+=sv.text(L,y,'and '+(tags.length-32)+' more',11);
   s+=head(R,y2,'BUILDING');y2+=26;
   fact('Overall size',"60'-0\" x 48'-0\"");fact('Floor area',(W_ALL*D_ALL).toLocaleString()+' sq ft');fact('Main wall height',fi(eave()));fact('Roof pitch',P.pitch+' in 12');fact('Peak height',fi(ridge()));
