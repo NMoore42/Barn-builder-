@@ -161,7 +161,15 @@ button:disabled{opacity:.45;cursor:default}
 .snap button{min-height:0;height:32px;padding:0;font-size:13px;font-weight:600;border-radius:6px;text-align:center}
 .snap button[aria-pressed="true"]{background:var(--marker);color:var(--marker-ink);border-color:var(--marker)}
 .snap .snapeye{height:30px;font-size:13px}
-@media (max-width:640px){ .snap{padding:3px;gap:2px;right:8px} .snapgrid{grid-template-columns:repeat(3,36px);grid-auto-rows:24px;gap:2px} .snap button{height:24px;font-size:11px;border-radius:5px} .snap .snapeye{height:24px} }
+.snaprow{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.layers{position:absolute;z-index:8;right:max(12px,env(safe-area-inset-right,0px));background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:12px;width:min(270px,calc(100% - 32px));display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.layers .name{font-size:18px}
+.layers .dims{font-size:13px;margin-bottom:4px}
+.lrow{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 4px;border-radius:8px;cursor:pointer;font-size:16px}
+.lrow input{width:22px;height:22px;margin:0;accent-color:var(--marker);flex:0 0 auto}
+.lrow:hover{background:var(--marker-soft)}
+@media (max-width:640px){ .snaprow{gap:2px} .layers{right:8px;padding:10px;gap:2px} .layers .dims{display:none} .layers .name{font-size:16px} .lrow{min-height:38px;font-size:15px} .snap{padding:3px;gap:2px;right:8px} .snapgrid{grid-template-columns:repeat(3,36px);grid-auto-rows:24px;gap:2px} .snap button{height:24px;font-size:11px;border-radius:5px} .snap .snapeye{height:24px} }
 .shareopts{display:flex;flex-direction:column;gap:8px}
 .shareopt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;padding:10px 14px}
 .shareopt b{font-size:18px}
@@ -242,7 +250,6 @@ button:disabled{opacity:.45;cursor:default}
     </div>
     <div class="group">
       <button id="btnUndo" disabled>Undo</button>
-      <button id="btnSlice" class="wide-only" aria-pressed="false">Slice</button>
       <button id="btnMeasure" class="wide-only" aria-pressed="false">Measure</button>
       <button id="btnBlueprint" class="wide-only">Blueprint</button>
       <button id="btnMore" aria-expanded="false">Menu</button>
@@ -253,7 +260,7 @@ button:disabled{opacity:.45;cursor:default}
     <div class="mpage" id="menuMain">
       <button id="mInstall" class="primary" hidden>Add to Home Screen</button>
       <div class="mhead phone-only">Tools</div>
-      <div class="mgrid phone-only"><button id="mBlueprint">Blueprint</button><button id="mSlice">Slice</button><button id="mMeasure">Measure</button></div>
+      <div class="mgrid phone-only" style="grid-template-columns:repeat(2,1fr)"><button id="mBlueprint">Blueprint</button><button id="mMeasure">Measure</button></div>
       <div class="mhead">Share and save</div>
       <button id="mPdf">Share</button>
       <button id="mCopy">Save to a file</button>
@@ -265,7 +272,6 @@ button:disabled{opacity:.45;cursor:default}
     <div class="mpage" id="menuSettings" hidden>
       <button id="mBack" class="mback">‹ Back</button>
       <div class="mhead">Settings</div>
-      <button id="mLabels" aria-pressed="true">Name tags</button>
       <button id="mRefresh">Refresh</button>
       <button id="mReset" class="danger">Start over</button>
       <div class="about" id="mVersion"></div>
@@ -296,6 +302,12 @@ button:disabled{opacity:.45;cursor:default}
       <span></span><button data-snap="front" aria-pressed="false">Front</button><span></span>
     </div>
     <button id="snapEye" class="snapeye" aria-pressed="false">Eye level</button>
+    <div class="snaprow"><button id="btnSlice" aria-pressed="false">Slice</button><button id="btnLayers" aria-pressed="false" aria-expanded="false">Layers</button></div>
+  </div>
+  <div class="layers" id="layersPanel" hidden role="group" aria-label="Layers">
+    <div class="name">Layers</div>
+    <div class="dims">Show or hide parts of the view. Nothing in the barn changes.</div>
+    <div id="layerList"></div>
   </div>
   <section class="dock" id="dock"></section>
 
@@ -415,12 +427,12 @@ function emptyGroup(g){while(g.children.length){const c=g.children.pop();c.trave
 
 const groundMat=new THREE.MeshBasicMaterial({color:0xdbe2d9});
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(900,900),groundMat); ground.rotation.x=-Math.PI/2; ground.position.set(30,-0.22,24); scene.add(ground);
-let grid=null;
+let grid=null; const LAY={walls:true,items:true,loft:true,tags:true,floor:true,grid:true};
 function applyTheme(){const cs=getComputedStyle(document.documentElement), v=n=>cs.getPropertyValue(n).trim()||'#888';
   renderer.setClearColor(new THREE.Color(v('--sky'))); groundMat.color.set(v('--ground'));
   if(grid){scene.remove(grid);grid.geometry.dispose();grid.material.dispose();}
   grid=new THREE.GridHelper(160,80,v('--grid'),v('--grid')); grid.material.transparent=true; grid.material.opacity=.35;
-  grid.position.set(30,0.012,24); scene.add(grid); redraw();}
+  grid.position.set(30,0.012,24); grid.visible=LAY.grid; scene.add(grid); redraw();}
 applyTheme();
 const mq=matchMedia('(prefers-color-scheme: dark)'); if(mq.addEventListener)mq.addEventListener('change',applyTheme); else if(mq.addListener)mq.addListener(applyTheme);
 new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -664,9 +676,14 @@ const elev=t=>CAT[t].hang?Math.max(4,P.wall-CAT[t].hang):0;
 function dims(it){const c=CAT[it.t],d={L:it.L||c.L,W:it.W||c.W,H:it.H||c.H};if(c.derive)c.derive(d);return d;}
 function removeItemMesh(it){if(it.g){itemsG.remove(it.g);it.g.traverse(c=>{if(c.geometry)c.geometry.dispose();});it.g=null;}
   if(it.lab){labelsG.remove(it.lab);it.lab.material.map.dispose();it.lab.material.dispose();it.lab=null;}}
+function itemShown(it){return CAT[it.t].g==='Loft'?LAY.loft:LAY.items;}
+function applyItemLayer(it){if(!it.g)return;const v=itemShown(it);it.g.visible=v;if(it.lab)it.lab.visible=v;}
+function applyLayers(){tagsOn=LAY.tags;wallsG.visible=LAY.walls;items.forEach(applyItemLayer);labelsG.visible=LAY.tags&&view!=='outside';
+  zoneLabels.forEach(z=>{z.me.visible=LAY.floor;});if(grid)grid.visible=LAY.grid;
+  if(sel&&((sel.kind==='item'&&findItem(sel.id)&&!itemShown(findItem(sel.id)))||(sel.kind!=='item'&&!LAY.walls)))select(null);redraw();}
 function buildItem(it){removeItemMesh(it);const g=CAT[it.t].b(dims(it));g.userData.pick={kind:'item',id:it.i};it.g=g;itemsG.add(g);
   const tx=textTexture([CAT[it.t].n],'#ffffff','rgba(28,42,58,.82)'),sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx.t,depthWrite:false}));
-  sp.scale.set(1.5*tx.asp,1.5,1);it.lab=sp;labelsG.add(sp);placeItem(it);}
+  sp.scale.set(1.5*tx.asp,1.5,1);it.lab=sp;labelsG.add(sp);placeItem(it);applyItemLayer(it);}
 /* loft railing: left off any side that sits against a solid wall, and opened where stairs arrive */
 function againstWall(A,B){const len=Math.hypot(B[0]-A[0],B[1]-A[1]);for(const id in walls){const w=walls[id];if(w.state!=='solid')continue;const a=w.def.a;
     const dA=Math.abs((A[0]-a[0])*w.dz-(A[1]-a[1])*w.dx),dB=Math.abs((B[0]-a[0])*w.dz-(B[1]-a[1])*w.dx);if(dA>1.25||dB>1.25)continue;
@@ -722,8 +739,9 @@ const ray=new THREE.Raycaster(), ndc=new THREE.Vector2(), UP=new THREE.Vector3(0
 function setRay(e){const r=canvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height*2-1));ray.setFromCamera(ndc,cam);}
 function pickOf(o){while(o){if(o.userData&&o.userData.pick)return o.userData.pick;o=o.parent;}return null;}
 function pick(e){if(mode==='look')return null;setRay(e);
-  if(mode==='arrange'){const hits=ray.intersectObjects(itemsG.children,true).map(x=>({p:pickOf(x.object),pt:x.point})).filter(x=>x.p);
+  if(mode==='arrange'){const hits=ray.intersectObjects(itemsG.children.filter(g=>g.visible),true).map(x=>({p:pickOf(x.object),pt:x.point})).filter(x=>x.p);
     const isLoft=x=>{const it=findItem(x.p.id);return it&&it.t==='loft';},best=hits.find(x=>!isLoft(x))||hits[0];return best?Object.assign({pt:best.pt},best.p):null;}
+  if(!LAY.walls)return null;
   const hits=ray.intersectObjects(wallsG.children,true).map(x=>({p:pickOf(x.object),pt:x.point})).filter(x=>x.p&&slicePlane.distanceToPoint(x.pt)>=-.01);
   const best=hits.find(x=>!walls[x.p.wallId].faded)||hits[0]; if(!best)return null;
   if(topView&&best.p.kind==='wall'){const w=walls[best.p.wallId],u=(best.pt.x-w.def.a[0])*w.dx+(best.pt.z-w.def.a[1])*w.dz,o=w.state==='solid'&&w.ops.find(q=>Math.abs(u-q.u)<=q.w/2);
@@ -917,7 +935,7 @@ function snapTo(k){if(k==='top'){eyeLevel=false;setViewMode('above');markSnap('t
 document.querySelectorAll('#snap [data-snap]').forEach(b=>b.onclick=()=>snapTo(b.dataset.snap));
 $('snapEye').onclick=()=>{eyeLevel=!eyeLevel;snapTo(snapNow&&snapNow!=='top'?snapNow:'front');};
 controls.addEventListener('start',()=>{snapAnim++;snapping=false;markSnap(null);});
-function setViewMode(v){view=v;roof.visible=v==='outside';labelsG.visible=tagsOn&&v!=='outside';topView=v==='above';
+function setViewMode(v){view=v;roof.visible=v==='outside';labelsG.visible=LAY.tags&&v!=='outside';topView=v==='above';
   controls.enableRotate=!topView;controls.touches.ONE=topView?THREE.TOUCH.PAN:THREE.TOUCH.ROTATE;controls.mouseButtons.LEFT=topView?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE;
   ['inside','outside','above'].forEach(k=>$('v-'+k).setAttribute('aria-pressed',String(k===v)));
   snapAnim++;if(typeof markSnap==='function')markSnap(v==='above'?'top':null);setView();}
@@ -945,7 +963,7 @@ function applySlice(){const f=slice.from,deep=f==='front'||f==='back',max=(deep?
   $('sliceLabel').textContent=d<=1?'Slide to cut into the barn from '+SLICE_WORDS[f]+'.':'Cutting away '+(d-1)+' ft from '+SLICE_WORDS[f]+'.';
   document.querySelectorAll('#slicePanel [data-from]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.from===f)));
   $('btnSlice').setAttribute('aria-pressed',String(slice.on));redraw();}
-function openSlice(){closeMenu();if(measure.on)setMeasure(false);slice.on=true;const p=$('slicePanel');p.style.top=(document.querySelector('.bar').offsetHeight+4)+'px';p.hidden=false;applySlice();}
+function openSlice(){closeMenu();toggleLayers(false);if(measure.on)setMeasure(false);slice.on=true;const p=$('slicePanel');p.style.top=(document.querySelector('.bar').offsetHeight+4)+'px';p.hidden=false;applySlice();}
 $('btnSlice').onclick=()=>{if(slice.on&&!$('slicePanel').hidden){$('slicePanel').hidden=true;return;}openSlice();};
 $('sliceDone').onclick=()=>{$('slicePanel').hidden=true;};
 $('sliceOff').onclick=()=>{slice.on=false;$('slicePanel').hidden=true;applySlice();};
@@ -983,7 +1001,16 @@ const menuPage=settings=>{$('menuMain').hidden=settings;$('menuSettings').hidden
 $('mToSettings').onclick=()=>{menuPage(true);$('mBack').focus();};
 $('mBack').onclick=()=>{menuPage(false);$('mToSettings').focus();};
 $('btnMore').onclick=()=>{const m=$('menu');menuPage(false);m.style.top=(document.querySelector('.bar').offsetHeight+2)+'px';m.hidden=!m.hidden;$('btnMore').setAttribute('aria-expanded',String(!m.hidden));};
-$('mLabels').onclick=()=>{tagsOn=!tagsOn;labelsG.visible=tagsOn&&view!=='outside';$('mLabels').setAttribute('aria-pressed',String(tagsOn));try{localStorage.setItem(KEY+'.tags',tagsOn?'1':'0');}catch(e){}redraw();};
+const LAYER_LIST=[['walls','Walls and doors'],['items','Vehicles and equipment'],['loft','Loft and stairs'],['tags','Name tags'],['floor','Floor labels'],['grid','Grid']];
+function saveLayers(){try{localStorage.setItem(KEY+'.layers',JSON.stringify(LAY));}catch(e){}}
+function renderLayers(){const list=$('layerList');list.textContent='';LAYER_LIST.forEach(([k,l])=>{const cb=h('input',{type:'checkbox',id:'lay-'+k});cb.checked=LAY[k];
+  cb.addEventListener('change',()=>{LAY[k]=cb.checked;saveLayers();applyLayers();});list.append(h('label',{class:'lrow',for:'lay-'+k},cb,l));});}
+function placeLayers(){const sn=$('snap').getBoundingClientRect(),ap=app.getBoundingClientRect(),pn=$('layersPanel');pn.style.bottom=(ap.bottom-sn.top+6)+'px';
+  pn.style.maxHeight=Math.max(160,sn.top-ap.top-12)+'px';pn.style.overflowY='auto';}
+function toggleLayers(open){const pn=$('layersPanel');open=open==null?pn.hidden:open;if(open){closeMenu();renderLayers();pn.hidden=false;placeLayers();}else pn.hidden=true;
+  $('btnLayers').setAttribute('aria-pressed',String(open));$('btnLayers').setAttribute('aria-expanded',String(open));}
+$('btnLayers').onclick=()=>toggleLayers();
+canvas.addEventListener('pointerdown',()=>{if(!$('layersPanel').hidden)toggleLayers(false);});
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true;},Math.max(3200,msg.length*70));}
 function dialog(title,...body){const s=$('sheet');s.textContent='';s.append(h('h2',null,title),...body);$('modal').hidden=false;}
 function closeDialog(){$('modal').hidden=true;}
@@ -1092,7 +1119,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
   h('p',null,h('b',null,'Quick views: '),'the small pad in the corner turns the barn to face you from the Front, Back, Left or Right, or looks down from the Top. Eye level shows it as if you were standing there.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
-  h('p',null,h('b',null,'Slice: '),'cuts the barn open from the front, back or either side so you can see in. Slide to choose how much to cut away. Nothing is changed; it only hides part of the walls and roof.'),
+  h('p',null,h('b',null,'Slice and Layers: '),'are under the quick views pad. Slice cuts the barn open from one side so you can see in. Layers hides walls, vehicles, the loft, name tags, floor labels or the grid. Neither one changes the barn.'),
   h('p',null,h('b',null,'Measure: '),'tap Measure, then tap two spots to see how far apart they are. You can tap the floor, a wall or a vehicle.'),
   h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side. To put something up there, add it while the loft is selected.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
@@ -1103,7 +1130,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=49, VERSION_DATE='Nov 27';
+const VERSION=50, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1285,6 +1312,7 @@ function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:
   renderer.setPixelRatio(1);renderer.setSize(W,H,false);cam.clearViewOffset();cam.aspect=W/H;cam.updateProjectionMatrix();
   renderer.setClearColor(new THREE.Color('#e7ece8'));groundMat.color.set('#dbe2d9');
   slice.on=false;applySlice();measureG.visible=false;if(selBox)selBox.visible=false;
+  const keepLay=Object.assign({},LAY);for(const k in LAY)LAY[k]=true;applyLayers();
   const vf=cam.fov*Math.PI/180,hf=2*Math.atan(Math.tan(vf/2)*cam.aspect),T=new THREE.Vector3(30,2,24),out=[];
   const shot=(title,dir,roofOn,top)=>{roof.visible=roofOn;labelsG.visible=!roofOn;topView=!!top;
     const need=top?Math.max(35/Math.tan(hf/2),29/Math.tan(vf/2)):Math.max(41/Math.tan(hf/2),32/Math.tan(vf/2));
@@ -1292,7 +1320,7 @@ function captureViews(){const W=1600,H=1000,keep={pos:cam.position.clone(),roof:
     updateFade();renderer.render(scene,cam);out.push([title,canvas.toDataURL('image/jpeg',.9)]);};
   try{shot('Outside, from the front',[.55,.5,1],true);shot('Outside, from the back',[-.6,.5,-1],true);
     shot('Inside, from the front',[.5,.8,1],false);shot('Inside, from the back',[-.5,.8,-1],false);shot('From above',[0,1,.001],false,true);}
-  finally{roof.visible=keep.roof;labelsG.visible=keep.tags;topView=keep.top;slice.on=keep.slice;applySlice();measureG.visible=keep.meas;if(selBox)selBox.visible=keep.box;
+  finally{Object.assign(LAY,keepLay);applyLayers();roof.visible=keep.roof;labelsG.visible=keep.tags;topView=keep.top;slice.on=keep.slice;applySlice();measureG.visible=keep.meas;if(selBox)selBox.visible=keep.box;
     renderer.setPixelRatio(keep.pr);cam.position.copy(keep.pos);applyTheme();resize();controls.update();updateFade();redraw();}
   return out;}
 function viewsDoc(lnk){const doc=pdfDoc(),views=captureViews(),name=(curProject()||{}).name||'Barn',today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
@@ -1347,14 +1375,15 @@ async function savePdf(){const btn=$('bpSave');
     }else{const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);bpStatus('Saved. Open barn-blueprint.pdf and print it from there.');}
   }catch(e){bpStatus('The PDF could not be made on this device. You can take a screenshot of each sheet and print the pictures.');}
   finally{btn.disabled=false;}}
-$('mBlueprint').onclick=openBlueprint; $('mSlice').onclick=openSlice; $('mMeasure').onclick=()=>{closeMenu();setMeasure(!measure.on);};
+$('mBlueprint').onclick=openBlueprint; $('mMeasure').onclick=()=>{closeMenu();setMeasure(!measure.on);};
 $('mPdf').onclick=shareDialog; $('bpShare').onclick=shareDialog;
 $('btnBlueprint').onclick=openBlueprint; $('bpClose').onclick=closeBlueprint; $('bpSave').onclick=savePdf;
 if(!window.claude){$('bpPrint').hidden=false;$('bpPrint').onclick=()=>window.print();}
 
 /* ================= start ================= */
 let saved=null;
-try{saved=JSON.parse(localStorage.getItem(KEY)||'null'); if(localStorage.getItem(KEY+'.tags')==='0'){tagsOn=false;labelsG.visible=false;$('mLabels').setAttribute('aria-pressed','false');}}catch(e){}
+try{saved=JSON.parse(localStorage.getItem(KEY)||'null');const ly=JSON.parse(localStorage.getItem(KEY+'.layers')||'null');
+  if(ly&&typeof ly==='object')for(const k in LAY){if(typeof ly[k]==='boolean')LAY[k]=ly[k];} else if(localStorage.getItem(KEY+'.tags')==='0')LAY.tags=false;}catch(e){}
 loadProjects();
 if(!projects.length){projects=[{id:'p1',name:"Tom's barn",t:Date.now()}];curId='p1';writeProject('p1',saved&&saved.walls?saved:defaultState());saveProjects();}
 if(!curProject())curId=projects[0].id;
@@ -1422,7 +1451,7 @@ function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
 window.addEventListener('hashchange',async()=>{const o=await readIncoming();if(o)offerIncoming(o);});
 if(/BARN[1-5]/i.test(location.search+location.hash)||/^[?#](b\b|b=|barn)/i.test(location.search+location.hash))readIncoming().then(o=>{if(o)offerIncoming(o);});
 else if(!saved&&!seenHelp)help();
-updateInstall(); maybeInstallBar();
+updateInstall(); maybeInstallBar(); applyLayers();
 window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews,barnPageFile,encodeLink,encodeLinkAsync,decode,decodeAsync,compactState};
 })();
 </script>
