@@ -89,7 +89,7 @@ button:disabled{opacity:.45;cursor:default}
 .swatch[aria-pressed="true"]{border-color:var(--marker);box-shadow:0 0 0 3px var(--panel),0 0 0 6px var(--marker)}
 
 .menu{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
-  border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100% - 32px));z-index:5}
+  border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100% - 32px));z-index:8}
 .menu button{text-align:left}
 .mpage{display:flex;flex-direction:column;gap:6px}
 .mhead{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--pencil);padding:8px 6px 0}
@@ -112,7 +112,7 @@ button:disabled{opacity:.45;cursor:default}
 .about .tab b{display:block;font-size:15px}
 .about .tab span{display:block;font-size:13px;color:var(--pencil);line-height:1.3}
 .slice{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:70px;background:var(--panel);border:1px solid var(--line);
-  border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100% - 32px));z-index:5}
+  border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100% - 32px));z-index:8}
 .slice .seg button{flex:1 1 0;padding:8px 6px}
 .slice input[type=range]{width:100%;height:44px;margin:0;accent-color:var(--marker)}
 .modal{position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;z-index:20;
@@ -463,9 +463,11 @@ const PKEY=KEY+'.projects'; let projects=[], curId=null;
 const curProject=()=>projects.find(p=>p.id===curId);
 function loadProjects(){try{const j=JSON.parse(localStorage.getItem(PKEY)||'null');
   if(j&&Array.isArray(j.list)){projects=j.list.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string').map(p=>({id:p.id,name:p.name.slice(0,40),t:num(p.t,Date.now())}));curId=j.cur;}}catch(e){}}
-function saveProjects(){try{localStorage.setItem(PKEY,JSON.stringify({list:projects,cur:curId}));}catch(e){}}
+let savesWork=true;
+function storeFailed(){if(!savesWork)return;savesWork=false;setTimeout(showNotSaving,0);}
+function saveProjects(){try{localStorage.setItem(PKEY,JSON.stringify({list:projects,cur:curId}));}catch(e){storeFailed();}}
 function readProject(id){try{return JSON.parse(localStorage.getItem(KEY+'.p.'+id)||'null');}catch(e){return null;}}
-function writeProject(id,state){try{localStorage.setItem(KEY+'.p.'+id,JSON.stringify(state));}catch(e){}}
+function writeProject(id,state){try{localStorage.setItem(KEY+'.p.'+id,JSON.stringify(state));savesWork=true;const b=document.getElementById('saveBar');if(b)b.remove();}catch(e){storeFailed();}}
 function save(){writeProject(curId,getState());const p=curProject();if(p){p.t=Date.now();saveProjects();}}
 const undo=[];
 function pushUndo(snapshot){undo.push(snapshot||JSON.stringify(getState())); if(undo.length>60)undo.shift(); $('btnUndo').disabled=false;}
@@ -990,7 +992,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=34, VERSION_DATE='Nov 27';
+const VERSION=35, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -998,6 +1000,12 @@ const VERSION=34, VERSION_DATE='Nov 27';
     h('div',{class:'tab'},mug,h('div',null,h('b',null,"Tom's tab: "+VERSION+' cold beers'),h('span',null,'*One per version, payable to the programmer.'))));}
 $('mRefresh').onclick=()=>{closeMenu();save();toast('Getting the latest version.');const go=()=>location.reload();
   try{fetch(location.href.split('#')[0],{cache:'reload'}).then(go,go);}catch(e){go();}};
+
+/* ================= when the device will not keep changes ================= */
+function showNotSaving(){if(savesWork||$('saveBar'))return;
+  const bar=h('div',{class:'installbar',id:'saveBar',role:'alert'},h('span',null,'This device is not saving your changes. Private browsing can cause this.'),
+    h('button',{class:'primary',onclick:()=>$('mCopy').click()},'Save to a file'));
+  bar.style.top=(document.querySelector('.bar').offsetHeight+6)+'px';app.append(bar);}
 
 /* ================= projects ================= */
 let projEdit=null, projDel=null;
@@ -1171,6 +1179,9 @@ async function savePdfFiles(files,note){
   note.textContent='Saved '+files.map(f=>f[0]).join(' and ')+'.';}
 const fileBase=()=>((curProject()||{}).name||'Barn').replace(/[^A-Za-z0-9 _-]+/g,'').trim().replace(/\s+/g,'-')||'Barn';
 function shareDialog(){closeMenu();
+  if(!savesWork){const name=(curProject()||{}).name||'Barn',note=h('p',{class:'dims',role:'status'},'');
+    dialog('Save first?',h('p',null,'This device is not keeping your changes, so “'+name+'” will be lost when the app closes. Save it to a file first so you have a copy.'),
+      h('div',{class:'row'},h('button',{class:'primary',onclick:()=>saveBarnFile(note)},'Save to a file'),h('button',{onclick:()=>{savesWork=true;shareDialog();savesWork=false;}},'Share without saving')),note);return;}
   const name=(curProject()||{}).name||'Barn',note=h('p',{role:'status',class:'dims'},''),body=h('div',{class:'shareopts'});
   const opt=(title,desc,fn)=>h('button',{class:'shareopt',onclick:fn},h('b',null,title),h('span',null,desc));
   const pdf=async kind=>{if(!window.jspdf||!window.jspdf.jsPDF){note.textContent='The PDF tool did not load. Check the internet connection and try again.';return;}
@@ -1192,7 +1203,7 @@ function shareDialog(){closeMenu();
     opt('Blueprint','A PDF of the four blueprint sheets with measurements',()=>pdf('plans')),
     opt(canLink?'Link':'Text','Opens the barn on their phone so they can turn it around and look inside',link));};
   menu();
-  dialog('Share “'+name+'”',body,note,h('div',{class:'row'},h('button',{onclick:closeDialog},'Close')));}
+  dialog('Share “'+name+'”',h('p',{class:'dims'},'Shares the barn as it is right now. Your changes are saved as you go.'),body,note,h('div',{class:'row'},h('button',{onclick:closeDialog},'Close')));}
 async function savePdf(){const btn=$('bpSave');
   if(!window.jspdf||!window.jspdf.jsPDF){bpStatus('The PDF tool did not load. Check the internet connection and try again.');return;}
   btn.disabled=true;bpStatus('Making the PDF. This takes a few seconds.');
