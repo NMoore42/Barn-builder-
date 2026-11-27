@@ -155,6 +155,13 @@ button:disabled{opacity:.45;cursor:default}
 
 @media (max-width:1280px){ .brand{display:none} }
 .palette{display:flex;flex-direction:column;gap:10px}
+.snap{position:absolute;right:max(12px,env(safe-area-inset-right,0px));z-index:4;display:flex;flex-direction:column;gap:4px;
+  background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:5px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.snapgrid{display:grid;grid-template-columns:repeat(3,46px);grid-auto-rows:32px;gap:3px}
+.snap button{min-height:0;height:32px;padding:0;font-size:13px;font-weight:600;border-radius:6px;text-align:center}
+.snap button[aria-pressed="true"]{background:var(--marker);color:var(--marker-ink);border-color:var(--marker)}
+.snap .snapeye{height:30px;font-size:13px}
+@media (max-width:640px){ .snap{padding:3px;gap:2px;right:8px} .snapgrid{grid-template-columns:repeat(3,36px);grid-auto-rows:24px;gap:2px} .snap button{height:24px;font-size:11px;border-radius:5px} .snap .snapeye{height:24px} }
 .shareopts{display:flex;flex-direction:column;gap:8px}
 .shareopt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;padding:10px 14px}
 .shareopt b{font-size:18px}
@@ -282,6 +289,14 @@ button:disabled{opacity:.45;cursor:default}
   </div>
 
   <div class="toast" id="toast" role="status" hidden></div>
+  <div class="snap" id="snap" role="group" aria-label="Quick views">
+    <div class="snapgrid">
+      <span></span><button data-snap="back" aria-pressed="false">Back</button><span></span>
+      <button data-snap="left" aria-pressed="false">Left</button><button data-snap="top" aria-pressed="false">Top</button><button data-snap="right" aria-pressed="false">Right</button>
+      <span></span><button data-snap="front" aria-pressed="false">Front</button><span></span>
+    </div>
+    <button id="snapEye" class="snapeye" aria-pressed="false">Eye level</button>
+  </div>
   <section class="dock" id="dock"></section>
 
   <section class="bp" id="bp" hidden aria-label="Blueprint">
@@ -381,7 +396,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(42,1,1,900);
 const controls=new THREE.OrbitControls(cam,canvas);
-controls.screenSpacePanning=false; controls.maxPolarAngle=Math.PI/2-0.06; controls.minDistance=12; controls.maxDistance=320;
+controls.screenSpacePanning=false; controls.maxPolarAngle=Math.PI/2-0.004; controls.minDistance=12; controls.maxDistance=320;
 controls.enableDamping=false; controls.rotateSpeed=.7;
 scene.add(new THREE.HemisphereLight(0xffffff,0x8a8f96,.85));
 const sun=new THREE.DirectionalLight(0xffffff,.55); sun.position.set(40,90,70); scene.add(sun);
@@ -883,17 +898,39 @@ function setView(){const asp=cam.aspect,vf=cam.fov*Math.PI/180,hf=2*Math.atan(Ma
   const need=topView?Math.max(36/Math.tan(hf/2),32/tv):Math.max(38/Math.tan(hf/2),30/tv); controls.target.set(30,0,24);
   if(topView)cam.position.set(30,need,24.01); else{const v=new THREE.Vector3(.5,.78,1).normalize().multiplyScalar(need);cam.position.set(30+v.x,v.y,24+v.z);}
   controls.update();updateFade();redraw();}
+/* quick views: tween the camera to a fixed direction; eye level puts it at standing height */
+const SNAP_DIRS={front:[0,1],back:[0,-1],left:[-1,0],right:[1,0]};
+let snapNow=null,eyeLevel=false,snapAnim=0,snapping=false;
+function markSnap(k){snapNow=k;document.querySelectorAll('#snap [data-snap]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.snap===k)));$('snapEye').setAttribute('aria-pressed',String(eyeLevel));}
+function snapTo(k){if(k==='top'){eyeLevel=false;setViewMode('above');markSnap('top');return;}
+  if(view==='above')setViewMode('inside');
+  const d=SNAP_DIRS[k],vf=cam.fov*Math.PI/180,hf=2*Math.atan(Math.tan(vf/2)*cam.aspect),half=(d[0]?D_ALL:W_ALL)/2+3,
+    need=Math.max(half/Math.tan(hf/2),(ridge()/2+4)/(Math.tan(vf/2)*visFrac));
+  const T=new THREE.Vector3(30,eyeLevel?4.8:ridge()/3,24),P=eyeLevel?new THREE.Vector3(30+d[0]*need,5.5,24+d[1]*need)
+    :T.clone().add(new THREE.Vector3(d[0]*Math.cos(.42),Math.sin(.42),d[1]*Math.cos(.42)).multiplyScalar(need));
+  const p0=cam.position.clone(),t0=controls.target.clone(),id=++snapAnim,start=performance.now(),dur=matchMedia('(prefers-reduced-motion: reduce)').matches?0:450;
+  snapping=true;
+  const step=now=>{if(id!==snapAnim)return;const f=dur?Math.min(1,(now-start)/dur):1,e=f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2;
+    cam.position.lerpVectors(p0,P,e);controls.target.lerpVectors(t0,T,e);controls.update();
+    if(f<1)requestAnimationFrame(step);else{snapping=false;updateFade();redraw();}};
+  requestAnimationFrame(step);markSnap(k);}
+document.querySelectorAll('#snap [data-snap]').forEach(b=>b.onclick=()=>snapTo(b.dataset.snap));
+$('snapEye').onclick=()=>{eyeLevel=!eyeLevel;snapTo(snapNow&&snapNow!=='top'?snapNow:'front');};
+controls.addEventListener('start',()=>{snapAnim++;snapping=false;markSnap(null);});
 function setViewMode(v){view=v;roof.visible=v==='outside';labelsG.visible=tagsOn&&v!=='outside';topView=v==='above';
   controls.enableRotate=!topView;controls.touches.ONE=topView?THREE.TOUCH.PAN:THREE.TOUCH.ROTATE;controls.mouseButtons.LEFT=topView?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE;
   ['inside','outside','above'].forEach(k=>$('v-'+k).setAttribute('aria-pressed',String(k===v)));
-  setView();}
+  snapAnim++;if(typeof markSnap==='function')markSnap(v==='above'?'top':null);setView();}
 ['inside','outside','above'].forEach(k=>$('v-'+k).onclick=()=>setViewMode(k));
 function setTab(t){tab=t;mode=t==='things'?'arrange':t==='doors'?'build':'look';
   const outsideTab=t==='size'||t==='colors'; sel=null;refreshSel();renderDock();resize();
   if(outsideTab&&view!=='outside')setViewMode('outside');else if(!outsideTab&&view==='outside')setViewMode('inside');}
 function resize(){const w=app.clientWidth,hh=app.clientHeight;if(!w||!hh)return;renderer.setSize(w,hh,false);cam.aspect=w/hh;
   const dh=Math.min(Math.max(dock.offsetHeight||0,200),hh*.45),bh=Math.min(document.querySelector('.bar').offsetHeight||64,hh*.25);
-  visFrac=Math.max(.4,(hh-dh-bh)/hh);cam.setViewOffset(w,hh,0,Math.round((dh-bh)/2),w,hh);cam.updateProjectionMatrix();redraw();}
+  visFrac=Math.max(.4,(hh-dh-bh)/hh);cam.setViewOffset(w,hh,0,Math.round((dh-bh)/2),w,hh);cam.updateProjectionMatrix();
+  placeSnap();redraw();}
+function placeSnap(){const sn=$('snap');if(sn)sn.style.bottom=((dock.offsetHeight||0)+10)+'px';}
+if(window.ResizeObserver)new ResizeObserver(placeSnap).observe(dock);
 
 /* ================= slice ================= */
 const slice={on:false,from:'front',d:{front:25,back:25,left:31,right:31}};
@@ -1053,6 +1090,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',{class:'dims'},'Software by Nick Moore'),
   h('p',null,'This is a model of the barn with the new lean-tos. Nothing you do here can break anything, and Undo takes back the last change.'),
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. The buttons at the top switch between Inside, Outside and From above.'),
+  h('p',null,h('b',null,'Quick views: '),'the small pad in the corner turns the barn to face you from the Front, Back, Left or Right, or looks down from the Top. Eye level shows it as if you were standing there.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
   h('p',null,h('b',null,'Slice: '),'cuts the barn open from the front, back or either side so you can see in. Slide to choose how much to cut away. Nothing is changed; it only hides part of the walls and roof.'),
   h('p',null,h('b',null,'Measure: '),'tap Measure, then tap two spots to see how far apart they are. You can tap the floor, a wall or a vehicle.'),
@@ -1065,7 +1103,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=48, VERSION_DATE='Nov 27';
+const VERSION=49, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
