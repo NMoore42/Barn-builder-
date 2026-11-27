@@ -145,6 +145,11 @@ button:disabled{opacity:.45;cursor:default}
 
 @media (max-width:1280px){ .brand{display:none} }
 .palette{display:flex;flex-direction:column;gap:10px}
+.shareopts{display:flex;flex-direction:column;gap:8px}
+.shareopt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;padding:10px 14px}
+.shareopt b{font-size:18px}
+.shareopt span{color:var(--pencil);font-size:14px;font-weight:400}
+.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;line-height:1.4}
 @media (min-width:641px){ .phone-only{display:none!important} }
 @media (max-width:640px){
   .wide-only,.brand,.spacer{display:none!important}
@@ -227,9 +232,9 @@ button:disabled{opacity:.45;cursor:default}
     <button id="mMeasure" class="phone-only">Measure</button>
     <button id="mHelp">Help</button>
     <button id="mLabels" aria-pressed="true">Name tags</button>
-    <button id="mCopy">Save or share</button>
+    <button id="mCopy">Save to a file</button>
     <button id="mPaste">Open a barn</button>
-    <button id="mPdf">Share PDFs</button>
+    <button id="mPdf">Share</button>
     <button id="mRefresh">Refresh</button>
     <button id="mReset" class="danger">Start over</button>
     <div class="about" id="mVersion"></div>
@@ -258,7 +263,7 @@ button:disabled{opacity:.45;cursor:default}
     <div class="bphead">
       <div class="what"><h2>Blueprint</h2><div class="dims" id="bpStatus">Four sheets, drawn from the barn as it is right now.</div></div>
       <button id="bpPrint" hidden>Print</button>
-      <button id="bpShare">Share as PDFs</button>
+      <button id="bpShare">Share</button>
       <button id="bpSave" class="primary">Save as PDF to print</button>
       <button id="bpClose">Back to the barn</button>
     </div>
@@ -943,13 +948,9 @@ function saveBarnFile(note){const f=barnFile(),done=()=>{note.textContent='Saved
   try{const a=document.createElement('a'),url=URL.createObjectURL(new Blob([f.text],{type:'text/plain'}));a.href=url;a.download=f.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);done();}
   catch(e){note.textContent=no;}}
 const NO_FILE='A file could not be saved here. Use Copy the link instead and keep the link in Notes.';
-$('mCopy').onclick=()=>{closeMenu();const text=shareText(),name=(curProject()||{}).name||'Barn',send=canLink&&!!navigator.share;
-  const ta=h('textarea',{id:'codeOut','aria-label':'Layout to share'},text),note=h('p',{class:'dims',role:'status'},'');
-  dialog('Save or share this barn',
-    h('p',null,'Save “'+name+'” to a file to keep a copy or move it to another device.'+(canLink?' Or send a link that opens a copy of it.':'')),
-    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>saveBarnFile(note)},'Save to a file'),
-      send?h('button',{onclick:()=>{navigator.share({title:"Tom's Barn Builder: "+name,url:text}).then(()=>{note.textContent='Sent.';},()=>{});}},'Send a link'):null,
-      h('button',{onclick:()=>copyText(text,ta,note)},canLink?'Copy the link':'Copy the text'),h('button',{onclick:closeDialog},'Close')),note,ta);};
+$('mCopy').onclick=()=>{closeMenu();const name=(curProject()||{}).name||'Barn',note=h('p',{class:'dims',role:'status'},'');
+  dialog('Save “'+name+'” to a file',h('p',null,'Keeps a copy you can open later with Open a barn, or move to another device.'),
+    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>saveBarnFile(note)},'Save to a file'),h('button',{onclick:closeDialog},'Close')),note);};
 $('mPaste').onclick=()=>{closeMenu();const ta=h('textarea',{id:'codeIn',placeholder:'Or paste a link or text here'}),err=h('p',{class:'warn',role:'status'},'');
   const open=text=>{let o;try{o=decode(text);}catch(e){err.textContent='That is not a barn. Choose a file saved from this app, or paste the whole link or text.';return;}
     if(!loadShared(o)){err.textContent='That barn could not be opened.';return;}closeDialog();toast('Opened as a new project called '+curProject().name+'.');};
@@ -970,13 +971,13 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Loft: '),'under Vehicles & equipment, the Loft group has a platform and stairs. Set how long, wide and high the loft is, and it tells you the room underneath and on top. Push the loft against a wall and the railing comes off that side. To put something up there, add it while the loft is selected.'),
   h('p',null,h('b',null,'Doors & walls: '),'tap a wall to add a door or window there. Drag a door to slide it along the wall.'),
   h('p',null,h('b',null,'Height & roof, Colors: '),'use the plus and minus buttons and the color circles to change how the barn is built and how it looks.'),
-  h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print. Share as PDFs sends pictures of the barn in 3D along with the blueprint.'),
+  h('p',null,h('b',null,'Blueprint: '),'shows flat drawings with measurements that you can save and print. Share sends pictures of the barn in 3D, the blueprint, or a link that opens the barn on another phone.'),
   h('p',null,h('b',null,'Hide: '),'the Hide button at the end of the bottom row tucks the menu away so you can see more of the barn. Show the menu brings it back.'),
   h('p',null,h('b',null,'Settings: '),'has this help, name tags, saving a barn to a file or opening one, and Refresh, which loads the newest version of the app. Refreshing keeps your projects.'),
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=30, VERSION_DATE='Nov 27';
+const VERSION=31, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1152,24 +1153,33 @@ function viewsDoc(){const doc=pdfDoc(),views=captureViews(),name=(curProject()||
   return doc;}
 async function savePdfFiles(files,note){
   if(dlPromise){const dl=await dlPromise;if(!dl){note.textContent=NO_SAVE;return;}
-    try{for(const f of files)await dl.save({filename:f[0],data:f[1]});note.textContent='Saved both PDFs.';}catch(e){note.textContent=e&&e.code==='declined'?'Not saved.':NO_SAVE;}return;}
+    try{for(const f of files)await dl.save({filename:f[0],data:f[1]});note.textContent='Saved.';}catch(e){note.textContent=e&&e.code==='declined'?'Not saved.':NO_SAVE;}return;}
   files.forEach((f,i)=>setTimeout(()=>{const a=document.createElement('a'),url=URL.createObjectURL(f[1]);a.href=url;a.download=f[0];document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),20000);},i*800));
-  note.textContent='Saved both PDFs. The 3D pictures are file 1 and the blueprint is file 2.';}
-function sharePdfs(){closeMenu();
-  if(!window.jspdf||!window.jspdf.jsPDF){toast('The PDF tool did not load. Check the internet connection and try again.');return;}
-  const note=h('p',{role:'status'},'This makes two PDFs that open on any phone: pictures of the barn in 3D first, then the blueprint.'),row=h('div',{class:'row'});
-  const base=((curProject()||{}).name||'Barn').replace(/[^A-Za-z0-9 _-]+/g,'').trim().replace(/\s+/g,'-')||'Barn';
-  const start=h('button',{class:'primary',onclick:async()=>{start.disabled=true;note.textContent='Getting the PDFs ready. This takes a few seconds.';
-    try{const views=viewsDoc().output('blob'),plans=(await blueprintDoc()).output('blob'),files=[[base+'-1-3D-pictures.pdf',views],[base+'-2-blueprint.pdf',plans]];
-      let list=null;try{list=files.map(f=>new File([f[1]],f[0],{type:'application/pdf'}));}catch(e){}
+  note.textContent='Saved '+files.map(f=>f[0]).join(' and ')+'.';}
+const fileBase=()=>((curProject()||{}).name||'Barn').replace(/[^A-Za-z0-9 _-]+/g,'').trim().replace(/\s+/g,'-')||'Barn';
+function shareDialog(){closeMenu();
+  const name=(curProject()||{}).name||'Barn',note=h('p',{role:'status',class:'dims'},''),body=h('div',{class:'shareopts'});
+  const opt=(title,desc,fn)=>h('button',{class:'shareopt',onclick:fn},h('b',null,title),h('span',null,desc));
+  const pdf=async kind=>{if(!window.jspdf||!window.jspdf.jsPDF){note.textContent='The PDF tool did not load. Check the internet connection and try again.';return;}
+    body.textContent='';note.textContent='Getting it ready. This takes a few seconds.';
+    try{const views=kind==='views',blob=views?viewsDoc().output('blob'):(await blueprintDoc()).output('blob'),fname=fileBase()+(views?'-3D-pictures.pdf':'-blueprint.pdf'),files=[[fname,blob]];
+      let list=null;try{list=[new File([blob],fname,{type:'application/pdf'})];}catch(e){}
       const can=!dlPromise&&!!list&&!!navigator.share&&!!navigator.canShare&&navigator.canShare({files:list});
-      row.textContent='';
-      if(can)row.append(h('button',{class:'primary',onclick:()=>{navigator.share({files:list}).then(()=>{note.textContent='Shared.';},e=>{if(!e||e.name!=='AbortError')note.textContent='Sharing did not work here. Use Save them instead.';});}},'Share them'));
-      row.append(h('button',{class:can?'':'primary',onclick:()=>savePdfFiles(files,note)},'Save them'),h('button',{onclick:closeDialog},'Close'));
-      note.textContent='Ready: the 3D pictures first, then the blueprint.'+(can?' Tap Share them.':'');
-    }catch(e){note.textContent='The PDFs could not be made on this device.';start.disabled=false;}}},'Get them ready');
-  row.append(start,h('button',{onclick:closeDialog},'Cancel'));
-  dialog('Share the barn as PDFs',note,row);}
+      note.textContent='Ready: '+fname+'.'+(can?' Tap Share it.':'');
+      body.append(h('div',{class:'row'},can?h('button',{class:'primary',onclick:()=>{navigator.share({files:list}).then(()=>{note.textContent='Shared.';},e=>{if(!e||e.name!=='AbortError')note.textContent='Sharing did not work here. Use Save it instead.';});}},'Share it'):null,
+        h('button',{class:can?'':'primary',onclick:()=>savePdfFiles(files,note)},'Save it'),h('button',{onclick:menu},'Back')));
+    }catch(e){note.textContent='That could not be made on this device.';body.append(h('div',{class:'row'},h('button',{onclick:menu},'Back')));}};
+  const linkFallback=text=>{body.textContent='';const ta=h('textarea',{id:'codeOut','aria-label':'Link to share'},text);
+    body.append(ta,h('div',{class:'row'},h('button',{class:'primary',onclick:()=>copyText(text,ta,note)},canLink?'Copy the link':'Copy the text'),h('button',{onclick:menu},'Back')));copyText(text,ta,note);};
+  const link=()=>{const text=shareText();
+    if(canLink&&navigator.share){navigator.share({title:"Tom's Barn Builder: "+name,url:text}).then(()=>{note.textContent='Sent.';},e=>{if(e&&e.name!=='AbortError')linkFallback(text);});return;}
+    linkFallback(text);};
+  const menu=()=>{body.textContent='';note.textContent='';body.append(
+    opt('3D pictures','A PDF with five pictures of the barn, inside and out',()=>pdf('views')),
+    opt('Blueprint','A PDF of the four blueprint sheets with measurements',()=>pdf('plans')),
+    opt(canLink?'Link':'Text','Opens the barn on their phone so they can turn it around and look inside',link));};
+  menu();
+  dialog('Share “'+name+'”',body,note,h('div',{class:'row'},h('button',{onclick:closeDialog},'Close')));}
 async function savePdf(){const btn=$('bpSave');
   if(!window.jspdf||!window.jspdf.jsPDF){bpStatus('The PDF tool did not load. Check the internet connection and try again.');return;}
   btn.disabled=true;bpStatus('Making the PDF. This takes a few seconds.');
@@ -1183,7 +1193,7 @@ async function savePdf(){const btn=$('bpSave');
   }catch(e){bpStatus('The PDF could not be made on this device. You can take a screenshot of each sheet and print the pictures.');}
   finally{btn.disabled=false;}}
 $('mBlueprint').onclick=openBlueprint; $('mSlice').onclick=openSlice; $('mMeasure').onclick=()=>{closeMenu();setMeasure(!measure.on);};
-$('mPdf').onclick=sharePdfs; $('bpShare').onclick=sharePdfs;
+$('mPdf').onclick=shareDialog; $('bpShare').onclick=shareDialog;
 $('btnBlueprint').onclick=openBlueprint; $('bpClose').onclick=closeBlueprint; $('bpSave').onclick=savePdf;
 if(!window.claude){$('bpPrint').hidden=false;$('bpPrint').onclick=()=>window.print();}
 
@@ -1200,11 +1210,19 @@ const onResize=()=>{resize();updateFade();}; if(window.ResizeObserver)new Resize
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{drawZoneLabels();items.forEach(buildItem);refreshSel();redraw();}).catch(()=>{});
 let seenHelp=false; try{seenHelp=!!localStorage.getItem(KEY+'.seen');localStorage.setItem(KEY+'.seen','1');}catch(e){}
 let incoming=null;
+const inHomeApp=navigator.standalone===true||matchMedia('(display-mode: standalone)').matches, touchDevice=matchMedia('(pointer:coarse)').matches;
+function toHomeApp(o){const text=location.origin+location.pathname+'#'+encode(o),note=h('p',{class:'dims',role:'status'},''),ta=h('textarea',{id:'codeOut','aria-label':'Barn link'},text);
+  const steps=h('ol',{class:'steps'},h('li',null,'Go to your Home Screen and open Barn Builder.'),h('li',null,'Tap Menu (Settings on an iPad), then Open a barn.'),h('li',null,'Tap Paste and open.'));
+  dialog('Open it in your Home Screen app',h('p',null,'Links always open here in the browser, so the barn needs to be pasted into the app.'),note,steps,ta,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK')));
+  ta.hidden=true;
+  const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
 if(/BARN1/i.test(location.hash)){try{incoming=decode(location.hash);}catch(e){try{incoming=decode(decodeURIComponent(location.hash));}catch(e2){}}
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
 if(incoming){const nm=cleanName(incoming.name);
   dialog('Open the shared barn?',h('p',null,'This link has a barn layout'+(nm?' called “'+nm+'”':'')+'. It opens as a new project, and your own projects stay as they are.'),
-    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{if(loadShared(incoming)){closeDialog();toast('Opened as a new project called '+curProject().name+'.');}else toast('That layout could not be opened.');}},'Open it'),h('button',{onclick:closeDialog},'No thanks')));}
+    h('div',{class:'row'},h('button',{class:'primary',onclick:()=>{if(loadShared(incoming)){closeDialog();toast('Opened as a new project called '+curProject().name+'.');}else toast('That layout could not be opened.');}},'Open it here'),
+      (!inHomeApp&&touchDevice)?h('button',{onclick:()=>toHomeApp(incoming)},'Open it in my Home Screen app'):null,h('button',{onclick:closeDialog},'No thanks')));}
 else if(!saved&&!seenHelp)help();
 window.__barn={getState,applyState,walls,cam,items:()=>items,blueprintSheets,captureViews};
 })();
