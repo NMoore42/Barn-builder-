@@ -988,7 +988,7 @@ function decode(txt){const raw=String(txt),first=raw.trim();
   throw new Error('shape');}
 /* a shared barn always arrives as its own project; returns the message to show, or null if it could not be read */
 /* the barn a shared layout would become, as saved text, or null when it cannot be read */
-function sharedKey(o){const before=JSON.stringify(getState());let key=null;try{applyState(o);key=barnPrint(getState());}catch(e){}applyState(JSON.parse(before));return key;}
+function sharedKey(o){const before=JSON.stringify(getState());let key=null;try{applyState(o);key=barnPrint(getState());}catch(e){if(linkInfo)linkInfo.why='could not be built: '+String(e&&e.message||e).slice(0,80);}applyState(JSON.parse(before));return key;}
 function sameProject(key){const now=barnPrint(getState());return projects.find(q=>{if(q.id===curId)return now===key;const st=readProject(q.id);return !!st&&barnPrint(st)===key;});}
 function loadShared(o,copy){const before=JSON.stringify(getState());try{applyState(o);}catch(e){applyState(JSON.parse(before));return null;}
   const good=getState(),key=barnPrint(good);applyState(JSON.parse(before));
@@ -1039,7 +1039,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=38, VERSION_DATE='Nov 27';
+const VERSION=39, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
@@ -1310,12 +1310,15 @@ function toHomeApp(o){const text=location.origin+location.pathname+'#'+encodeLin
   ta.hidden=true;
   const done=()=>{note.textContent='The barn is copied. Now:';},fail=()=>{ta.hidden=false;ta.focus();try{ta.setSelectionRange(0,text.length);}catch(e){ta.select();}note.textContent='Tap the text below and choose Copy. Then:';};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fail);else fail();}
-function readIncoming(){let o=null;if(!/BARN[12]/i.test(location.hash))return null;
+let linkInfo=null;
+function readIncoming(){let o=null;const raw=location.hash;if(!/BARN[12]/i.test(raw))return null;
+  linkInfo={len:raw.length,kind:(raw.match(/BARN[12]/i)||['?'])[0].toUpperCase(),why:'could not be decoded'};
   try{o=decode(location.hash);}catch(e){try{o=decode(decodeURIComponent(location.hash));}catch(e2){}}
-  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}return o||{bad:true};}
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}if(o)linkInfo.why='';return o||{bad:true};}
 function offerIncoming(o){const nm=cleanName(o.name);closeMenu();
   const key=o.bad?null:sharedKey(o);
-  if(key==null){dialog('That link could not be opened',h('p',null,'The barn in it could not be read. It may have been cut off when it was sent. Ask for it to be sent again, or as a file.'),h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK')));return;}
+  if(key==null){dialog('That link could not be opened',h('p',null,'The barn in it could not be read. It may have been cut off when it was sent. Ask for it to be sent again, or as a file.'),
+    linkInfo?h('p',{class:'dims'},'Details: app version '+VERSION+' · '+linkInfo.kind+' link · '+linkInfo.len+' characters · '+(linkInfo.why||'unknown')):null,h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'OK')));return;}
   const same=sameProject(key);
   if(same){const open=same.id===curId;
     dialog('You already have this barn',h('p',null,open?'This link is the same as “'+same.name+'”, which is open now. Nothing in it is new.':'This link is the same as your “'+same.name+'”.'),
