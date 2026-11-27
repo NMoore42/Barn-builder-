@@ -310,7 +310,7 @@ button:disabled{opacity:.45;cursor:default}
   </div>
   <div class="walkpad" id="walkpad" hidden role="group" aria-label="Walk">
     <span></span><button data-walk="fwd" aria-label="Walk forward">▲</button><span></span>
-    <button data-walk="left" aria-label="Turn left">◀</button><span class="walklabel">Walk</span><button data-walk="right" aria-label="Turn right">▶</button>
+    <button data-walk="left" aria-label="Step left">◀</button><span class="walklabel">Walk</span><button data-walk="right" aria-label="Step right">▶</button>
     <span></span><button data-walk="back" aria-label="Walk backward">▼</button><span></span>
   </div>
   <div class="layers" id="layersPanel" hidden role="group" aria-label="Layers">
@@ -956,7 +956,7 @@ function flyTo(d,keepTarget){const vf=cam.fov*Math.PI/180,hf=2*Math.atan(Math.ta
 function snapTo(k){if(k==='top'){if(walk.on)endWalk();eyeLevel=false;setViewMode('above');markSnap('top');return;}
   if(view==='above')setViewMode('inside');if(walk.on){startWalk(SNAP_DIRS[k]);markSnap(k);return;}flyTo(SNAP_DIRS[k]);markSnap(k);}
 /* ---- walk mode: eye level on foot. Solid walls, windows, posts, vehicles and the loft railing stop you; doors 6 ft and taller let you through; stairs carry you up to the loft ---- */
-const BODY=.55, EYE=5.5, WALK_SPEED=5, TURN_SPEED=1.3;
+const BODY=.55, EYE=5.5, WALK_SPEED=7;
 function localXZ(it,x,z){const r=it.r*Math.PI/180,dx=x-it.x,dz=z-it.z;return [dx*Math.cos(r)+dz*Math.sin(r),-dx*Math.sin(r)+dz*Math.cos(r)];}
 function floorAt(x,z,y){
   for(const st of items){if(st.t!=='stairs')continue;const d=dims(st),[lx,lz]=localXZ(st,x,z);
@@ -975,8 +975,9 @@ function tryStep(nx,nz){nx=clamp(nx,-60,120);nz=clamp(nz,-60,110);const fy=floor
 function walkPose(){const c=Math.cos(walk.p);return {P:new THREE.Vector3(walk.x,walk.y+EYE,walk.z),T:new THREE.Vector3(walk.x+Math.sin(walk.h)*c*10,walk.y+EYE+Math.sin(walk.p)*10,walk.z+Math.cos(walk.h)*c*10)};}
 function applyWalk(){const {P,T:t}=walkPose();cam.position.copy(P);controls.target.copy(t);cam.lookAt(t);updateFade();redraw();}
 function walkTick(now){if(!walk.on){walk.raf=0;return;}const dt=walk.last?Math.min(.05,(now-walk.last)/1000):1/60;walk.last=now;const H=walk.hold;
-  if(H.left)walk.h+=TURN_SPEED*dt;if(H.right)walk.h-=TURN_SPEED*dt;
-  if(H.fwd||H.back){const s=(H.fwd?1:-1)*WALK_SPEED*dt,dx=Math.sin(walk.h)*s,dz=Math.cos(walk.h)*s;if(!tryStep(walk.x+dx,walk.z+dz)){tryStep(walk.x+dx,walk.z)||tryStep(walk.x,walk.z+dz);}}
+  const f=(H.fwd?1:0)-(H.back?1:0),sd=(H.left?1:0)-(H.right?1:0);
+  if(f||sd){const l=Math.hypot(f,sd),s=WALK_SPEED*dt/l,sn=Math.sin(walk.h),cs=Math.cos(walk.h),
+    dx=(sn*f+cs*sd)*s,dz=(cs*f-sn*sd)*s;if(!tryStep(walk.x+dx,walk.z+dz)){tryStep(walk.x+dx,walk.z)||tryStep(walk.x,walk.z+dz);}}
   applyWalk();if(Object.values(H).some(Boolean))walk.raf=requestAnimationFrame(walkTick);else{walk.raf=0;walk.last=0;}}
 function holdWalk(k,v){walk.hold[k]=v;document.querySelectorAll('#walkpad [data-walk="'+k+'"]').forEach(b=>b.classList.toggle('on',v));if(v&&!walk.raf){walk.last=0;walk.raf=requestAnimationFrame(walkTick);}}
 document.querySelectorAll('#walkpad [data-walk]').forEach(b=>{const k=b.dataset.walk;
@@ -991,7 +992,7 @@ function startWalk(d){const ext=Math.abs(d[0])*W_ALL/2+Math.abs(d[1])*D_ALL/2,di
   const {P,T:t}=walkPose(),p0=cam.position.clone(),t0=controls.target.clone(),id=++snapAnim,start=performance.now(),dur=matchMedia('(prefers-reduced-motion: reduce)').matches?0:500;
   const step=now=>{if(id!==snapAnim||!walk.on)return;const f=dur?Math.min(1,(now-start)/dur):1,e=f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2;
     cam.position.lerpVectors(p0,P,e);controls.target.lerpVectors(t0,t,e);cam.lookAt(controls.target);redraw();if(f<1)requestAnimationFrame(step);else applyWalk();};
-  requestAnimationFrame(step);if(first)toast('Walking. Hold ▲ to walk, ◀ ▶ to turn. Tap Walk again to stop.');}
+  requestAnimationFrame(step);if(first)toast('Walking. Hold the arrows to walk and step sideways. Slide a finger to look around. Tap Walk again to stop.');}
 function endWalk(){walk.on=false;walk.hold={};look=null;document.querySelectorAll('#walkpad .on').forEach(b=>b.classList.remove('on'));$('walkpad').hidden=true;
   cam.near=1;cam.updateProjectionMatrix();controls.enabled=true;labelsG.visible=LAY.tags&&view!=='outside';updateFade();}
 /* the direction the camera is looking from right now, flattened to the ground; front when looking straight down */
@@ -1193,7 +1194,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,'This is a model of the barn with the new lean-tos. Nothing you do here can break anything, and Undo takes back the last change.'),
   h('p',null,h('b',null,'Looking around: '),'slide one finger to turn the barn. Use two fingers to slide it sideways, and pinch to zoom. Inside and Outside at the top take the roof off or put it on.'),
   h('p',null,h('b',null,'Quick views: '),'the small pad in the corner turns the barn to face you from the Front, Back, Left or Right, or looks down from the Top.'),
-  h('p',null,h('b',null,'Eye level and Walk: '),'Eye level shows the barn from standing height. Walk puts you on foot outside the barn: hold the arrows to walk and turn, or slide a finger to look around. Walls stop you, but you can walk through doors and up the loft stairs. Tap Walk again to stop.'),
+  h('p',null,h('b',null,'Eye level and Walk: '),'Eye level shows the barn from standing height. Walk puts you on foot outside the barn: hold the arrows to walk forward, back and sideways, and slide a finger to look around. Walls stop you, but you can walk through doors and up the loft stairs. Tap Walk again to stop.'),
   h('p',null,h('b',null,'Vehicles & equipment: '),'tap something in the list to add it, then drag it where it goes. Tap it to turn it or remove it. Everything is real size.'),
   h('p',null,h('b',null,'Slice and Layers: '),'are under the quick views pad. Slice cuts the barn open from one side so you can see in. Layers hides walls, vehicles, the loft, name tags, floor labels or the grid. Neither one changes the barn.'),
   h('p',null,h('b',null,'Measure: '),'tap Measure, then tap two spots to see how far apart they are. You can tap the floor, a wall or a vehicle.'),
@@ -1206,7 +1207,7 @@ function help(){closeMenu();dialog("Welcome to Tom's Barn Builder",
   h('p',null,h('b',null,'Projects: '),'the Project button keeps separate versions of the barn, so you can try different ideas side by side.'),
   h('div',{class:'row'},h('button',{class:'primary',onclick:closeDialog},'Start')));}
 $('mHelp').onclick=help;
-const VERSION=55, VERSION_DATE='Nov 27';
+const VERSION=56, VERSION_DATE='Nov 27';
 {const stat=(label,value)=>h('div',{class:'stat'},h('span',null,label),h('b',null,value)),mug=h('div',{class:'mug','aria-hidden':'true'});
   mug.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 11h14v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M21 14h3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-3"/><path d="M7 11a3 3 0 0 1 1-6 4 4 0 0 1 7-1 3.500 3.500 0 0 1 6 3 2.500 2.500 0 0 1 0 4"/><path d="M11 16v8M14 16v8M17 16v8"/></svg>';
   $('mVersion').append(h('div',{class:'about-head'},h('div',{class:'name'},"Tom's Barn Builder"),h('div',{class:'by'},'Software by Nick Moore')),
